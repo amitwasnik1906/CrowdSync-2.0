@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ────────────────────────────────────────────────────
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Otp {
+  id        Int      @id @default(autoincrement())
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, code])
+}
+
+// ─── Core Models ─────────────────────────────────────────────
+
+model Parent {
+  id            Int            @id @default(autoincrement())
+  name          String
+  phone         String         @unique
+  email         String?
+  fcmToken      String?
+  students      Student[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+}
+
+model Student {
+  id        Int      @id @default(autoincrement())
+  name      String
+  class     String
+  faceId    String   @unique
+
+  parentId Int
+  busId    Int
+
+  parent     Parent       @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  bus        Bus          @relation(fields: [busId], references: [id])
+  attendance Attendance[]
+
+  createdAt DateTime @default(now())
+}
+
+model Bus {
+  id         Int    @id @default(autoincrement())
+  busNumber  String @unique
+  routeName  String
+  capacity   Int
+  occupancy  Int    @default(0)
+
+  currentLat Float?
+  currentLng Float?
+
+  students   Student[]
+  driver     Driver?
+  attendance Attendance[]
+  locations  BusLocation[]
+  route      BusRoute?
+
+  createdAt DateTime @default(now())
+}
+
+model Driver {
+  id            Int    @id @default(autoincrement())
+  name          String
+  phone         String @unique
+  licenseNumber String @unique
+  faceId        String @unique
+
+  busId Int?   @unique
+  bus   Bus?   @relation(fields: [busId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Attendance {
+  id        Int       @id @default(autoincrement())
+  studentId Int
+  busId     Int
+
+  entryTime DateTime?
+  exitTime  DateTime?
+
+  location String?
+  date     DateTime @default(now()) @db.Date
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bus     Bus     @relation(fields: [busId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, date])
+  @@index([busId, date])
+}
+
+model BusLocation {
+  id           Int      @id @default(autoincrement())
+  busId        Int
+  latitude     Float
+  longitude    Float
+  locationName String?
+  speed        Float?
+  timestamp    DateTime @default(now())
+
+  bus Bus @relation(fields: [busId], references: [id])
+
+  @@index([busId, timestamp])
+}
+
+model BusRoute {
+  id       Int    @id @default(autoincrement())
+  busId    Int    @unique
+  polyline String
+  stops    Json?
+
+  bus Bus @relation(fields: [busId], references: [id])
+}
+
+// ─── Notifications ───────────────────────────────────────────
+
+model Notification {
+  id       Int     @id @default(autoincrement())
+  parentId Int
+  title    String
+  body     String
+  type     String
+  read     Boolean @default(false)
+
+  parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([parentId, read])
+}
