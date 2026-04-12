@@ -41,26 +41,29 @@ async function parentLogin(req, res, next) {
     }
 
     // Step 2: Verify OTP
-    const otpRecord = await prisma.otp.findFirst({
-      where: {
-        phone,
-        code: otp,
-        verified: false,
-        expiresAt: { gte: new Date() },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // const otpRecord = await prisma.otp.findFirst({
+    //   where: {
+    //     phone,
+    //     code: otp,
+    //     verified: false,
+    //     expiresAt: { gte: new Date() },
+    //   },
+    //   orderBy: { createdAt: "desc" },
+    // });
 
-    if (!otpRecord) {
-      return error(res, "Invalid or expired OTP", 401);
-    }
+    // if (!otpRecord) {
+    //   return error(res, "Invalid or expired OTP", 401);
+    // }
 
-    await prisma.otp.update({
-      where: { id: otpRecord.id },
-      data: { verified: true },
-    });
+    // await prisma.otp.update({
+    //   where: { id: otpRecord.id },
+    //   data: { verified: true },
+    // });
 
     const parent = await prisma.parent.findUnique({ where: { phone } });
+    if (!parent) {
+      return error(res, "Account not found", 404);
+    }
     const token = generateToken({ id: parent.id, role: "parent" });
 
     return success(res, {

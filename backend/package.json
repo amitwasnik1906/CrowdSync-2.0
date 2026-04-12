@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && prisma migrate deploy",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev --config prisma/prisma.config.ts",
     "prisma:studio": "npx prisma studio --config prisma/prisma.config.ts",
