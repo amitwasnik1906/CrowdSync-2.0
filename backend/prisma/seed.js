@@ -35,6 +35,21 @@ async function main() {
 
   console.log("Bus created:", bus.busNumber);
 
+  // Create sample driver, assigned to the bus
+  const driver = await prisma.driver.upsert({
+    where: { licenseNumber: "DL-12345" },
+    update: {},
+    create: {
+      name: "Rajesh Kumar",
+      phone: "+911111111111",
+      licenseNumber: "DL-12345",
+      faceId: "DRIVER-FACE-001",
+      busId: bus.id,
+    },
+  });
+
+  console.log("Driver created:", driver.name);
+
   // Create sample parent
   const parent = await prisma.parent.upsert({
     where: { phone: "+1234567890" },
