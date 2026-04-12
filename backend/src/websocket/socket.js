@@ -2,6 +2,9 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 
+const DB_WRITE_THROTTLE_MS = 1000;
+const lastDbWriteAt = new Map(); // busId -> timestamp
+
 function initSocket(server) {
   const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
@@ -52,10 +55,18 @@ function initSocket(server) {
           return ack?.({ ok: false, error: "busId, latitude, longitude required" });
         }
 
-        await prisma.bus.update({
-          where: { id: parseInt(busId) },
-          data: { currentLat: latitude, currentLng: longitude },
-        });
+        const id = parseInt(busId);
+        const now = Date.now();
+        const last = lastDbWriteAt.get(id) || 0;
+        if (now - last >= DB_WRITE_THROTTLE_MS) {
+          lastDbWriteAt.set(id, now);
+          prisma.bus
+            .update({
+              where: { id },
+              data: { currentLat: latitude, currentLng: longitude },
+            })
+            .catch((e) => console.error("[WS] db update failed:", e.message));
+        }
 
         io.to(`bus_${busId}`).emit("busLocationUpdate", {
           busId: parseInt(busId),
