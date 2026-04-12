@@ -1,6 +1,19 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
 
+// GET /api/parents (ADMIN)
+async function listParents(req, res, next) {
+  try {
+    const parents = await prisma.parent.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { students: true } } },
+    });
+    return success(res, parents);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/parents/:id
 async function getParent(req, res, next) {
   try {
@@ -78,4 +91,4 @@ async function deleteParent(req, res, next) {
   }
 }
 
-module.exports = { getParent, getParentStudents, createParent, updateParent, deleteParent };
+module.exports = { listParents, getParent, getParentStudents, createParent, updateParent, deleteParent };

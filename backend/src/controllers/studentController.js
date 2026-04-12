@@ -1,6 +1,22 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
 
+// GET /api/students (ADMIN)
+async function listStudents(req, res, next) {
+  try {
+    const students = await prisma.student.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        parent: { select: { id: true, name: true, phone: true } },
+        bus: { select: { id: true, busNumber: true, routeName: true } },
+      },
+    });
+    return success(res, students);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /api/students (ADMIN)
 async function createStudent(req, res, next) {
   try {
@@ -109,4 +125,4 @@ async function getStudentAttendance(req, res, next) {
   }
 }
 
-module.exports = { createStudent, getStudent, updateStudent, deleteStudent, getStudentAttendance };
+module.exports = { listStudents, createStudent, getStudent, updateStudent, deleteStudent, getStudentAttendance };

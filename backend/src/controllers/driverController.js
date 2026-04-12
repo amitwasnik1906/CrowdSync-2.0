@@ -4,14 +4,14 @@ const { success, error } = require("../utils/response");
 // POST /api/drivers (ADMIN)
 async function createDriver(req, res, next) {
   try {
-    const { name, phone, licenseNumber, busId } = req.body;
+    const { name, phone, licenseNumber, busId, faceId } = req.body;
 
-    if (!name || !phone || !licenseNumber) {
-      return error(res, "name, phone, and licenseNumber are required", 400);
+    if (!name || !phone || !licenseNumber || !faceId) {
+      return error(res, "name, phone, licenseNumber, and faceId are required", 400);
     }
 
     const driver = await prisma.driver.create({
-      data: { name, phone, licenseNumber, busId: busId || null },
+      data: { name, phone, licenseNumber, faceId, busId: busId || null },
       include: { bus: { select: { id: true, busNumber: true } } },
     });
 

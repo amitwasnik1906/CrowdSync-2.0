@@ -2,9 +2,12 @@ const express = require("express");
 const router = express.Router();
 const { authenticate, authorize } = require("../middleware/auth");
 const {
-  getParent, getParentStudents,
+  listParents, getParent, getParentStudents,
   createParent, updateParent, deleteParent,
 } = require("../controllers/parentController");
+
+// Admin-only list
+router.get("/", authenticate, authorize("admin"), listParents);
 
 // Parent can view own profile; admin can view any
 router.get("/:id", authenticate, getParent);
