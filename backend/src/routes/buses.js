@@ -3,7 +3,7 @@ const router = express.Router();
 const { authenticate, authorize } = require("../middleware/auth");
 const {
   createBus, getAllBuses, getBus, assignDriver,
-  getBusLocation, getBusRoute, getBusLocationHistory,
+  getBusLocation, getBusRoute,
 } = require("../controllers/busController");
 const { updateBusLocation } = require("../controllers/busLocationController");
 const { getBusAttendance } = require("../controllers/attendanceController");
@@ -21,6 +21,5 @@ router.get("/:busId/attendance", authenticate, authorize("admin"), getBusAttenda
 router.get("/:id", authenticate, getBus);
 router.get("/:busId/location", authenticate, getBusLocation);
 router.get("/:busId/route", authenticate, getBusRoute);
-router.get("/:busId/location-history", authenticate, getBusLocationHistory);
 
 module.exports = router;

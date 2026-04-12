@@ -112,32 +112,7 @@ async function getBusRoute(req, res, next) {
   }
 }
 
-// GET /api/buses/:busId/location-history
-async function getBusLocationHistory(req, res, next) {
-  try {
-    const busId = parseInt(req.params.busId);
-    const { startTime, endTime } = req.query;
-
-    const where = { busId };
-    if (startTime || endTime) {
-      where.timestamp = {};
-      if (startTime) where.timestamp.gte = new Date(startTime);
-      if (endTime) where.timestamp.lte = new Date(endTime);
-    }
-
-    const locations = await prisma.busLocation.findMany({
-      where,
-      orderBy: { timestamp: "desc" },
-      take: 100,
-    });
-
-    return success(res, locations);
-  } catch (err) {
-    next(err);
-  }
-}
-
 module.exports = {
   createBus, getAllBuses, getBus, assignDriver,
-  getBusLocation, getBusRoute, getBusLocationHistory,
+  getBusLocation, getBusRoute,
 };

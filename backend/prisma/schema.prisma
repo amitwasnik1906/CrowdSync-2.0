@@ -69,7 +69,6 @@ model Bus {
   students   Student[]
   driver     Driver?
   attendance Attendance[]
-  locations  BusLocation[]
   route      BusRoute?
 
   createdAt DateTime @default(now())
@@ -96,8 +95,8 @@ model Attendance {
   entryTime DateTime?
   exitTime  DateTime?
 
-  location String?
-  date     DateTime @default(now()) @db.Date
+  locationName String?
+  date         DateTime @default(now()) @db.Date
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   bus     Bus     @relation(fields: [busId], references: [id])
@@ -106,20 +105,6 @@ model Attendance {
 
   @@index([studentId, date])
   @@index([busId, date])
-}
-
-model BusLocation {
-  id           Int      @id @default(autoincrement())
-  busId        Int
-  latitude     Float
-  longitude    Float
-  locationName String?
-  speed        Float?
-  timestamp    DateTime @default(now())
-
-  bus Bus @relation(fields: [busId], references: [id])
-
-  @@index([busId, timestamp])
 }
 
 model BusRoute {

@@ -1,10 +1,11 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
+const { reverseGeocode } = require("../utils/geocode");
 
 // POST /api/attendance/entry (BUS SYSTEM)
 async function markEntry(req, res, next) {
   try {
-    const { studentId, busId } = req.body;
+    const { studentId, busId, latitude, longitude } = req.body;
 
     if (!studentId || !busId) {
       return error(res, "studentId and busId are required", 400);
@@ -22,11 +23,17 @@ async function markEntry(req, res, next) {
       return error(res, "Student already boarded this bus today", 409);
     }
 
+    const locationName =
+      latitude !== undefined && longitude !== undefined
+        ? await reverseGeocode(latitude, longitude)
+        : null;
+
     const attendance = await prisma.attendance.create({
       data: {
         studentId,
         busId,
         entryTime: new Date(),
+        locationName,
         date: today,
       },
       include: {
@@ -60,7 +67,7 @@ async function markEntry(req, res, next) {
 // POST /api/attendance/exit (BUS SYSTEM)
 async function markExit(req, res, next) {
   try {
-    const { studentId, busId } = req.body;
+    const { studentId, busId, latitude, longitude } = req.body;
 
     if (!studentId || !busId) {
       return error(res, "studentId and busId are required", 400);
@@ -78,9 +85,17 @@ async function markExit(req, res, next) {
       return error(res, "No active entry found for this student on this bus today", 404);
     }
 
+    const locationName =
+      latitude !== undefined && longitude !== undefined
+        ? await reverseGeocode(latitude, longitude)
+        : null;
+
     const updated = await prisma.attendance.update({
       where: { id: attendance.id },
-      data: { exitTime: new Date() },
+      data: {
+        exitTime: new Date(),
+        ...(locationName ? { locationName } : {}),
+      },
       include: {
         student: { select: { id: true, name: true, parentId: true } },
       },
