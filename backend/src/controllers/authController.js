@@ -34,7 +34,10 @@ async function parentLogin(req, res, next) {
       // In production, send OTP via SMS (Twilio, etc.)
       console.log(`[OTP] ${phone}: ${code}`);
 
-      return success(res, { message: "OTP sent successfully", otpForDev: code });
+      return success(res, { 
+        message: "OTP sent successfully",
+        otpExpiresAt: expiresAt.toISOString(),
+      });
     }
 
     // Step 2: Verify OTP
