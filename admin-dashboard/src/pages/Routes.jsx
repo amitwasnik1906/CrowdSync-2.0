@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { MapPin } from "lucide-react";
 import Button from "../components/ui/Button";
-import { Select } from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Modal from "../components/ui/Modal";
+import RouteMapPicker from "../components/RouteMapPicker";
 import { listBuses, getBusRoute } from "../api/buses";
 import { createRoute, updateRoute } from "../api/routes";
 
@@ -11,6 +12,9 @@ export default function RoutesPage() {
   const [buses, setBuses] = useState([]);
   const [routes, setRoutes] = useState({});
   const [editing, setEditing] = useState(null);
+  const [polylineStr, setPolylineStr] = useState("");
+  const [stopsStr, setStopsStr] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const reload = async () => {
     const busList = await listBuses();
@@ -30,15 +34,25 @@ export default function RoutesPage() {
 
   useEffect(() => { reload().catch(() => {}); }, []);
 
+  const openEditor = (bus) => {
+    const existing = routes[bus.id];
+    setPolylineStr(existing?.polyline || "");
+    setStopsStr(existing?.stops ? JSON.stringify(existing.stops, null, 2) : "");
+    setEditing(bus);
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
+    setPolylineStr("");
+    setStopsStr("");
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
-    const f = new FormData(e.target);
-    const polyline = f.get("polyline");
-    const stopsRaw = f.get("stops");
     let stops = null;
-    if (stopsRaw?.trim()) {
+    if (stopsStr.trim()) {
       try {
-        stops = JSON.parse(stopsRaw);
+        stops = JSON.parse(stopsStr);
       } catch {
         toast.error("Stops must be valid JSON");
         return;
@@ -47,17 +61,24 @@ export default function RoutesPage() {
     try {
       const existing = routes[editing.id];
       if (existing) {
-        await updateRoute(editing.id, { polyline, stops });
+        await updateRoute(editing.id, { polyline: polylineStr, stops });
         toast.success("Route updated");
       } else {
-        await createRoute({ busId: editing.id, polyline, stops });
+        await createRoute({ busId: editing.id, polyline: polylineStr, stops });
         toast.success("Route created");
       }
-      setEditing(null);
+      closeEditor();
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
     }
+  };
+
+  const handlePickerConfirm = (encodedPolyline, stops) => {
+    setPolylineStr(encodedPolyline);
+    setStopsStr(JSON.stringify(stops, null, 2));
+    setPickerOpen(false);
+    toast.success("Route drawn — review and save");
   };
 
   return (
@@ -82,7 +103,7 @@ export default function RoutesPage() {
             key: "actions",
             label: "Actions",
             render: (b) => (
-              <Button variant="secondary" onClick={() => setEditing(b)}>
+              <Button variant="secondary" onClick={() => openEditor(b)}>
                 {routes[b.id] ? "Edit" : "Create"}
               </Button>
             ),
@@ -93,17 +114,27 @@ export default function RoutesPage() {
 
       <Modal
         open={!!editing}
-        onClose={() => setEditing(null)}
+        onClose={closeEditor}
         title={`Route — ${editing?.busNumber}`}
       >
         <form onSubmit={handleSave} className="space-y-4">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Polyline (encoded or WKT)</span>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="block text-sm font-medium text-slate-700">Polyline (encoded or WKT)</span>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                <MapPin size={14} /> Draw on map
+              </button>
+            </div>
             <textarea
               name="polyline"
               rows="4"
               required
-              defaultValue={routes[editing?.id]?.polyline || ""}
+              value={polylineStr}
+              onChange={(e) => setPolylineStr(e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               placeholder="encodedPolylineString"
             />
@@ -113,17 +144,24 @@ export default function RoutesPage() {
             <textarea
               name="stops"
               rows="4"
-              defaultValue={routes[editing?.id]?.stops ? JSON.stringify(routes[editing.id].stops, null, 2) : ""}
+              value={stopsStr}
+              onChange={(e) => setStopsStr(e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               placeholder='[{"name":"Main St","lat":12.9,"lng":77.5}]'
             />
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button type="button" variant="secondary" onClick={closeEditor}>Cancel</Button>
             <Button type="submit">Save</Button>
           </div>
         </form>
       </Modal>
+
+      <RouteMapPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={handlePickerConfirm}
+      />
     </div>
   );
 }
