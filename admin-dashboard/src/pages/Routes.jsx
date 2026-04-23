@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { MapPin } from "lucide-react";
+import { MapPin, Eye } from "lucide-react";
 import Button from "../components/ui/Button";
 import Table from "../components/ui/Table";
 import Modal from "../components/ui/Modal";
 import RouteMapPicker from "../components/RouteMapPicker";
+import RoutePolylineViewer from "../components/RoutePolylineViewer";
 import { listBuses, getBusRoute } from "../api/buses";
 import { createRoute, updateRoute } from "../api/routes";
 
@@ -15,6 +16,8 @@ export default function RoutesPage() {
   const [polylineStr, setPolylineStr] = useState("");
   const [stopsStr, setStopsStr] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const reload = async () => {
     const busList = await listBuses();
@@ -103,9 +106,16 @@ export default function RoutesPage() {
             key: "actions",
             label: "Actions",
             render: (b) => (
-              <Button variant="secondary" onClick={() => openEditor(b)}>
-                {routes[b.id] ? "Edit" : "Create"}
-              </Button>
+              <div className="flex gap-2">
+                {routes[b.id] && (
+                  <Button variant="secondary" onClick={() => setViewing(b)}>
+                    <Eye size={14} /> View
+                  </Button>
+                )}
+                <Button variant="secondary" onClick={() => openEditor(b)}>
+                  {routes[b.id] ? "Edit" : "Create"}
+                </Button>
+              </div>
             ),
           },
         ]}
@@ -121,13 +131,24 @@ export default function RoutesPage() {
           <label className="block">
             <div className="mb-1 flex items-center justify-between">
               <span className="block text-sm font-medium text-slate-700">Polyline (encoded or WKT)</span>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
-              >
-                <MapPin size={14} /> Draw on map
-              </button>
+              <div className="flex items-center gap-3">
+                {polylineStr && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewing(true)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    <Eye size={14} /> Show on map
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                >
+                  <MapPin size={14} /> Draw on map
+                </button>
+              </div>
             </div>
             <textarea
               name="polyline"
@@ -161,6 +182,25 @@ export default function RoutesPage() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onConfirm={handlePickerConfirm}
+      />
+
+      <RoutePolylineViewer
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        title={viewing ? `Route — ${viewing.busNumber}` : ""}
+        encoded={viewing ? routes[viewing.id]?.polyline : null}
+        stops={viewing ? routes[viewing.id]?.stops : null}
+      />
+
+      <RoutePolylineViewer
+        open={previewing}
+        onClose={() => setPreviewing(false)}
+        title={editing ? `Preview — ${editing.busNumber}` : "Preview"}
+        encoded={polylineStr}
+        stops={(() => {
+          if (!stopsStr.trim()) return null;
+          try { return JSON.parse(stopsStr); } catch { return null; }
+        })()}
       />
     </div>
   );
