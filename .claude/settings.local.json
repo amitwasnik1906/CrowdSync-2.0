@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(npx vite *)",
+      "Bash(node -c prisma/seed.js)",
+      "Bash(npx expo *)",
+      "Bash(npx tsc *)",
+      "Bash(rm -f components/animated-icon.tsx components/animated-icon.web.tsx components/animated-icon.module.css components/external-link.tsx components/hint-row.tsx components/themed-text.tsx components/themed-view.tsx components/ui/collapsible.tsx components/web-badge.tsx hooks/use-color-scheme.ts hooks/use-color-scheme.web.ts hooks/use-theme.ts)",
+      "Bash(rmdir components/ui hooks)"
+    ]
+  }
+}
