@@ -8,6 +8,7 @@ export default function Attendance() {
   const [busId, setBusId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     listBuses().then((bs) => {
@@ -18,7 +19,11 @@ export default function Attendance() {
 
   useEffect(() => {
     if (!busId) return;
-    getBusAttendance(busId, date).then(setRows).catch(() => setRows([]));
+    setLoading(true);
+    getBusAttendance(busId, date)
+      .then(setRows)
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
   }, [busId, date]);
 
   return (
@@ -68,6 +73,7 @@ export default function Attendance() {
         ]}
         data={rows}
         empty="No attendance records for this day"
+        isLoading={loading}
       />
     </div>
   );

@@ -1,4 +1,12 @@
-export default function Table({ columns, data, onRowClick, empty = "No data" }) {
+import Spinner from "./Spinner";
+
+export default function Table({
+  columns,
+  data,
+  onRowClick,
+  empty = "No data",
+  isLoading = false,
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <table className="w-full text-left text-sm">
@@ -10,7 +18,16 @@ export default function Table({ columns, data, onRowClick, empty = "No data" }) 
           </tr>
         </thead>
         <tbody>
-          {data.length === 0 ? (
+          {isLoading && data.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-500">
+                <span className="inline-flex items-center gap-2">
+                  <Spinner size={14} className="text-indigo-600" />
+                  Loading…
+                </span>
+              </td>
+            </tr>
+          ) : data.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-400">
                 {empty}

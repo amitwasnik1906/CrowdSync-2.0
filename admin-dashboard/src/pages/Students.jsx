@@ -21,6 +21,9 @@ export default function Students() {
   const [deleting, setDeleting] = useState(null);
   const [files, setFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const previews = useMemo(
     () => files.map((f) => ({ file: f, url: URL.createObjectURL(f) })),
@@ -32,9 +35,12 @@ export default function Students() {
   }, [previews]);
 
   const reload = () => {
-    listStudents().then(setStudents).catch(() => {});
-    listBuses().then(setBuses).catch(() => {});
-    listParents().then(setParents).catch(() => {});
+    setLoading(true);
+    Promise.allSettled([
+      listStudents().then(setStudents),
+      listBuses().then(setBuses),
+      listParents().then(setParents),
+    ]).finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, []);
@@ -78,8 +84,10 @@ export default function Students() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (saving) return;
     const f = new FormData(e.target);
 
+    setSaving(true);
     try {
       if (editing.id) {
         // Edit: JSON payload, faceId is read-only here (Drive folder ID).
@@ -111,10 +119,14 @@ export default function Students() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (removing) return;
+    setRemoving(true);
     try {
       await deleteStudent(deleting.id);
       toast.success("Student deleted");
@@ -122,6 +134,8 @@ export default function Students() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -155,6 +169,7 @@ export default function Students() {
         ]}
         data={students}
         empty="No students yet"
+        isLoading={loading}
       />
 
       <Modal
@@ -242,8 +257,8 @@ export default function Students() {
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </form>
       </Modal>
@@ -254,6 +269,7 @@ export default function Students() {
         onConfirm={handleDelete}
         title="Delete Student"
         message={`Delete ${deleting?.name}?`}
+        loading={removing}
       />
     </div>
   );

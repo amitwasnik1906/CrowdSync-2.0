@@ -54,8 +54,8 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <Button type="submit" className="w-full justify-center" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          <Button type="submit" className="w-full justify-center" loading={loading}>
+            {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
       </div>

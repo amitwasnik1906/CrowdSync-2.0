@@ -10,11 +10,15 @@ export default function Dashboard() {
   const [buses, setBuses] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    listBuses().then(setBuses).catch(() => {});
-    listDrivers().then(setDrivers).catch(() => {});
-    listStudents().then(setStudents).catch(() => {});
+    setLoading(true);
+    Promise.allSettled([
+      listBuses().then(setBuses),
+      listDrivers().then(setDrivers),
+      listStudents().then(setStudents),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const totalStudents = students.length;
@@ -74,6 +78,7 @@ export default function Dashboard() {
           ]}
           data={buses}
           empty="No buses yet"
+          isLoading={loading}
         />
       </div>
     </div>

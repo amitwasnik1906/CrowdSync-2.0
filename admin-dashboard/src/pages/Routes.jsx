@@ -18,21 +18,28 @@ export default function RoutesPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [viewing, setViewing] = useState(null);
   const [previewing, setPreviewing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const reload = async () => {
-    const busList = await listBuses();
-    setBuses(busList);
-    const r = {};
-    await Promise.all(
-      busList.map(async (b) => {
-        try {
-          r[b.id] = await getBusRoute(b.id);
-        } catch {
-          r[b.id] = null;
-        }
-      })
-    );
-    setRoutes(r);
+    setLoading(true);
+    try {
+      const busList = await listBuses();
+      setBuses(busList);
+      const r = {};
+      await Promise.all(
+        busList.map(async (b) => {
+          try {
+            r[b.id] = await getBusRoute(b.id);
+          } catch {
+            r[b.id] = null;
+          }
+        })
+      );
+      setRoutes(r);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { reload().catch(() => {}); }, []);
@@ -52,6 +59,7 @@ export default function RoutesPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (saving) return;
     let stops = null;
     if (stopsStr.trim()) {
       try {
@@ -61,6 +69,7 @@ export default function RoutesPage() {
         return;
       }
     }
+    setSaving(true);
     try {
       const existing = routes[editing.id];
       if (existing) {
@@ -74,6 +83,8 @@ export default function RoutesPage() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -120,6 +131,8 @@ export default function RoutesPage() {
           },
         ]}
         data={buses}
+        empty="No buses yet"
+        isLoading={loading}
       />
 
       <Modal
@@ -172,8 +185,8 @@ export default function RoutesPage() {
             />
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={closeEditor}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="button" variant="secondary" onClick={closeEditor} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </form>
       </Modal>

@@ -16,18 +16,27 @@ export default function Buses() {
   const [creating, setCreating] = useState(false);
   const [assigning, setAssigning] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [assigningSubmit, setAssigningSubmit] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const navigate = useNavigate();
 
   const reload = () => {
-    listBuses().then(setBuses).catch(() => {});
-    listDrivers().then(setDrivers).catch(() => {});
+    setLoading(true);
+    Promise.allSettled([
+      listBuses().then(setBuses),
+      listDrivers().then(setDrivers),
+    ]).finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (saving) return;
     const f = new FormData(e.target);
+    setSaving(true);
     try {
       await createBus({
         busNumber: f.get("busNumber"),
@@ -39,12 +48,16 @@ export default function Buses() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAssign = async (e) => {
     e.preventDefault();
+    if (assigningSubmit) return;
     const driverId = parseInt(new FormData(e.target).get("driverId"));
+    setAssigningSubmit(true);
     try {
       await assignDriver(assigning.id, driverId);
       toast.success("Driver assigned");
@@ -52,10 +65,14 @@ export default function Buses() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setAssigningSubmit(false);
     }
   };
 
   const handleDelete = async () => {
+    if (removing) return;
+    setRemoving(true);
     try {
       await deleteBus(deleting.id);
       toast.success("Bus deleted");
@@ -63,6 +80,8 @@ export default function Buses() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -103,6 +122,7 @@ export default function Buses() {
         ]}
         data={buses}
         empty="No buses. Create one to get started."
+        isLoading={loading}
       />
 
       <Modal
@@ -115,8 +135,8 @@ export default function Buses() {
           <Input label="Route Name" name="routeName" required placeholder="Route B - Uptown" />
           <Input label="Capacity" name="capacity" type="number" required min="1" defaultValue="40" />
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button type="submit">Create</Button>
+            <Button type="button" variant="secondary" onClick={() => setCreating(false)} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving}>{saving ? "Creating…" : "Create"}</Button>
           </div>
         </form>
       </Modal>
@@ -136,8 +156,8 @@ export default function Buses() {
             ))}
           </Select>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setAssigning(null)}>Cancel</Button>
-            <Button type="submit">Assign</Button>
+            <Button type="button" variant="secondary" onClick={() => setAssigning(null)} disabled={assigningSubmit}>Cancel</Button>
+            <Button type="submit" loading={assigningSubmit}>{assigningSubmit ? "Assigning…" : "Assign"}</Button>
           </div>
         </form>
       </Modal>
@@ -148,6 +168,7 @@ export default function Buses() {
         onConfirm={handleDelete}
         title="Delete Bus"
         message={`Delete ${deleting?.busNumber}? Its route and attendance history will also be deleted. Reassign any students first.`}
+        loading={removing}
       />
     </div>
   );

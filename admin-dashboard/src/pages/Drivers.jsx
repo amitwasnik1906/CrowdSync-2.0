@@ -17,6 +17,9 @@ export default function Drivers() {
   const [deleting, setDeleting] = useState(null);
   const [files, setFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const previews = useMemo(
     () => files.map((f) => ({ file: f, url: URL.createObjectURL(f) })),
@@ -27,7 +30,10 @@ export default function Drivers() {
     return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
   }, [previews]);
 
-  const reload = () => listDrivers().then(setDrivers).catch(() => {});
+  const reload = () => {
+    setLoading(true);
+    listDrivers().then(setDrivers).catch(() => {}).finally(() => setLoading(false));
+  };
   useEffect(() => { reload(); }, []);
 
   const openCreate = () => { setFiles([]); setEditing({}); };
@@ -69,7 +75,9 @@ export default function Drivers() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (saving) return;
     const f = new FormData(e.target);
+    setSaving(true);
     try {
       if (editing.id) {
         const data = {
@@ -97,10 +105,14 @@ export default function Drivers() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (removing) return;
+    setRemoving(true);
     try {
       await deleteDriver(deleting.id);
       toast.success("Driver deleted");
@@ -108,6 +120,8 @@ export default function Drivers() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -139,6 +153,8 @@ export default function Drivers() {
           },
         ]}
         data={drivers}
+        empty="No drivers yet"
+        isLoading={loading}
       />
 
       <Modal
@@ -215,8 +231,8 @@ export default function Drivers() {
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </form>
       </Modal>
@@ -227,6 +243,7 @@ export default function Drivers() {
         onConfirm={handleDelete}
         title="Delete Driver"
         message={`Delete ${deleting?.name}? This cannot be undone.`}
+        loading={removing}
       />
     </div>
   );

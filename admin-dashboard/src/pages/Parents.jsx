@@ -12,18 +12,26 @@ export default function Parents() {
   const [parents, setParents] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
-  const reload = () => listParents().then(setParents).catch(() => {});
+  const reload = () => {
+    setLoading(true);
+    listParents().then(setParents).catch(() => {}).finally(() => setLoading(false));
+  };
   useEffect(() => { reload(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (saving) return;
     const f = new FormData(e.target);
     const data = {
       name: f.get("name"),
       phone: f.get("phone"),
       email: f.get("email") || undefined,
     };
+    setSaving(true);
     try {
       if (editing.id) {
         await updateParent(editing.id, data);
@@ -36,10 +44,14 @@ export default function Parents() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (removing) return;
+    setRemoving(true);
     try {
       await deleteParent(deleting.id);
       toast.success("Parent deleted");
@@ -47,6 +59,8 @@ export default function Parents() {
       reload();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -79,6 +93,7 @@ export default function Parents() {
         ]}
         data={parents}
         empty="No parents yet"
+        isLoading={loading}
       />
 
       <Modal
@@ -91,8 +106,8 @@ export default function Parents() {
           <Input label="Phone" name="phone" required defaultValue={editing?.phone || ""} />
           <Input label="Email" name="email" type="email" defaultValue={editing?.email || ""} />
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </form>
       </Modal>
@@ -103,6 +118,7 @@ export default function Parents() {
         onConfirm={handleDelete}
         title="Delete Parent"
         message={`Delete ${deleting?.name}? Their students will also be deleted.`}
+        loading={removing}
       />
     </div>
   );
