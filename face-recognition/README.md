@@ -16,8 +16,14 @@ face-recognition/
 │   ├── Akshay/
 │   ├── ben_afflek/
 │   └── ...
-├── model/
-│   └── face_recognition.py
+├── model/                # Importable package
+│   ├── __init__.py       # Re-exports the public API
+│   ├── face_utils.py     # MTCNN + FaceNet, extract/embed primitives
+│   ├── database.py       # build_database, find_match
+│   ├── camera.py         # Camera enumeration & source selection
+│   ├── capture.py        # Quality-gated auto-capture loop, take_photo
+│   └── main.py           # Attendance loop entry point
+├── run.py                # Convenience launcher → calls model.main:main
 ├── requirements.txt
 └── README.md
 ```
@@ -43,10 +49,12 @@ Create `dataset/<Name>/` and drop a few clear face photos (3–10 is plenty). Fo
 ## Run
 
 ```bash
-python model/face_recognition.py
+python run.py
+# or, equivalently:
+python -m model.main
 ```
 
-> The `dataset_path` is currently hardcoded to an absolute Windows path at the bottom of `face_recognition.py`. If you've cloned the repo elsewhere, edit that line.
+> `DATASET_PATH` is resolved relative to the package (`model/main.py`), so it works no matter where you've cloned the repo. Override it in `model/main.py` if your dataset lives elsewhere.
 
 You'll be prompted for an image source:
 
@@ -67,7 +75,7 @@ When the 5s window expires, the sharpest stored frame is saved to `live_capture.
 
 ## Tuning
 
-All knobs live as kwargs on `capture_from_stream(...)` in `model/face_recognition.py`:
+All knobs live as kwargs on `capture_from_stream(...)` in `model/capture.py`:
 
 | Knob              | Default | Effect                                                   |
 | ----------------- | ------- | -------------------------------------------------------- |
@@ -76,7 +84,7 @@ All knobs live as kwargs on `capture_from_stream(...)` in `model/face_recognitio
 | `min_face_size`   | `120`   | Min px on the shorter side of the face box.              |
 | `stable_seconds`  | `5.0`   | How long the face must stay in-frame before capture.     |
 
-Recognition threshold lives on the `find_match(..., threshold=0.5)` call in `__main__` — lower = stricter.
+Recognition threshold is the `RECOGNITION_THRESHOLD` constant at the top of `model/main.py` — lower = stricter.
 
 ## Troubleshooting
 
