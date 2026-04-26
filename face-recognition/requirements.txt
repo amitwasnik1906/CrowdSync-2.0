@@ -1,0 +1,7 @@
+opencv-python>=4.8
+numpy>=1.24
+scipy>=1.10
+mtcnn>=0.1.1
+keras-facenet>=0.3.2
+tensorflow>=2.12
+colorama>=0.4.6
