@@ -112,7 +112,40 @@ async function getBusRoute(req, res, next) {
   }
 }
 
+// DELETE /api/buses/:id (ADMIN)
+async function deleteBus(req, res, next) {
+  try {
+    const busId = parseInt(req.params.id);
+    if (Number.isNaN(busId)) return error(res, "Invalid bus id", 400);
+
+    const bus = await prisma.bus.findUnique({
+      where: { id: busId },
+      include: { _count: { select: { students: true } } },
+    });
+    if (!bus) return error(res, "Bus not found", 404);
+
+    if (bus._count.students > 0) {
+      return error(
+        res,
+        `Cannot delete: ${bus._count.students} student(s) are still assigned to this bus. Reassign them first.`,
+        409
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.driver.updateMany({ where: { busId }, data: { busId: null } }),
+      prisma.busRoute.deleteMany({ where: { busId } }),
+      prisma.attendance.deleteMany({ where: { busId } }),
+      prisma.bus.delete({ where: { id: busId } }),
+    ]);
+
+    return success(res, { message: "Bus deleted" });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
-  createBus, getAllBuses, getBus, assignDriver,
+  createBus, getAllBuses, getBus, assignDriver, deleteBus,
   getBusLocation, getBusRoute,
 };

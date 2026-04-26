@@ -19,6 +19,8 @@ CrowdSync is an intelligent transportation solution that integrates computer vis
 ```
 backend/
 ├── server.js                            # Entry point (Express + Socket.io)
+├── scripts/
+│   └── oauth-init.js                    # One-time Google Drive OAuth setup
 ├── prisma/
 │   ├── schema.prisma                    # Database schema (10 models)
 │   ├── prisma.config.ts                 # Prisma 7 configuration
@@ -29,8 +31,11 @@ backend/
     │   └── prisma.js                    # Prisma client singleton
     ├── utils/
     │   └── response.js                  # Standard API response helpers
+    ├── services/
+    │   └── driveService.js              # Google Drive OAuth client (folder + image upload)
     ├── middleware/
     │   ├── auth.js                      # JWT authentication & role-based authorization
+    │   ├── upload.js                    # multer (in-memory, 5 MB / image, 10 max)
     │   └── errorHandler.js              # Global error handler
     ├── controllers/
     │   ├── authController.js            # Parent OTP login, Admin login/register
@@ -70,13 +75,32 @@ npm install
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in the `backend/` folder. Copy `sample.env` and fill in the blanks:
 
 ```env
 DATABASE_URL="postgresql://username:password@localhost:5432/crowdsync"
 PORT=5000
 JWT_SECRET="your-secret-key"
+
+# Google Drive — OAuth user delegation (used for face-image uploads)
+GOOGLE_OAUTH_CLIENT_SECRET_PATH=E:\path\to\client_secret.json
+GOOGLE_OAUTH_TOKEN_PATH=E:\path\to\token.json
+DRIVE_PARENT_FOLDER_ID=<Drive folder ID from the URL>
 ```
+
+### Google Drive setup (one-time)
+
+The student/driver create endpoints upload face images to Google Drive. The flow uses your personal Google account via OAuth (no Workspace required).
+
+1. **Cloud Console → APIs & Services → OAuth consent screen** → User Type **External** → fill name + support email → add your Gmail under **Test users** → add scope `https://www.googleapis.com/auth/drive` → Save.
+2. **Cloud Console → APIs & Services → Credentials → + Create credentials → OAuth client ID** → Application type **Desktop app** → download the JSON and save it at the path you set in `GOOGLE_OAUTH_CLIENT_SECRET_PATH`.
+3. Run the consent flow once:
+   ```bash
+   node scripts/oauth-init.js
+   ```
+   A browser opens, you sign in and click **Allow**, and the resulting refresh token is written to `GOOGLE_OAUTH_TOKEN_PATH`.
+
+> While the OAuth consent screen is in **Testing** mode, Google revokes the refresh token after 7 days. If uploads start failing with auth errors, re-run `node scripts/oauth-init.js`.
 
 ### Database Setup
 
@@ -154,13 +178,26 @@ All endpoints are prefixed with `/api`.
 ### Students
 
 
-| Method | Endpoint                              | Description            | Access        |
-| ------ | ------------------------------------- | ---------------------- | ------------- |
-| GET    | `/api/students/:studentId/attendance` | Get attendance history | Authenticated |
-| POST   | `/api/students`                       | Create student         | Admin         |
-| GET    | `/api/students/:id`                   | Get student details    | Admin         |
-| PUT    | `/api/students/:id`                   | Update student         | Admin         |
-| DELETE | `/api/students/:id`                   | Delete student         | Admin         |
+| Method | Endpoint                              | Description                                 | Access        |
+| ------ | ------------------------------------- | ------------------------------------------- | ------------- |
+| GET    | `/api/students/:studentId/attendance` | Get attendance history                      | Authenticated |
+| POST   | `/api/students`                       | Create student (multipart, see notes below) | Admin         |
+| GET    | `/api/students/:id`                   | Get student details                         | Admin         |
+| PUT    | `/api/students/:id`                   | Update student                              | Admin         |
+| DELETE | `/api/students/:id`                   | Delete student                              | Admin         |
+
+
+**`POST /api/students` request shape (multipart/form-data):**
+
+| Field        | Type   | Notes                                                         |
+| ------------ | ------ | ------------------------------------------------------------- |
+| `name`       | text   | required                                                      |
+| `class`      | text   | required                                                      |
+| `parentId`   | text   | required, integer                                             |
+| `busId`      | text   | required, integer                                             |
+| `images`     | file[] | one or more image files (≥1 required, image/*, ≤5 MB each)    |
+
+`faceId` is **not** sent by the client. The server creates a Drive folder, uploads the images into it, and stores the Drive folder ID as `Student.faceId`.
 
 
 ### Buses
@@ -172,6 +209,7 @@ All endpoints are prefixed with `/api`.
 | GET    | `/api/buses`                         | List all buses          | Admin         |
 | GET    | `/api/buses/:id`                     | Get bus details         | Authenticated |
 | PUT    | `/api/buses/:busId/assign-driver`    | Assign driver to bus    | Admin         |
+| DELETE | `/api/buses/:id`                     | Delete bus              | Admin         |
 | GET    | `/api/buses/:busId/location`         | Get live bus location   | Authenticated |
 | GET    | `/api/buses/:busId/route`            | Get bus route polyline  | Authenticated |
 | GET    | `/api/buses/:busId/location-history` | Get location history    | Authenticated |
@@ -179,16 +217,26 @@ All endpoints are prefixed with `/api`.
 | POST   | `/api/buses/location`                | Update bus GPS location | Bus System    |
 
 
+**`DELETE /api/buses/:id` behavior:**
+
+- Returns **409** if any students are still assigned to the bus — reassign them first via `PUT /api/students/:id`.
+- Otherwise unassigns the driver, deletes the bus's `BusRoute`, deletes its `Attendance` rows, and then deletes the bus itself, all in one transaction.
+- Attendance history for that bus is permanently lost — there is no soft-delete / archive flag.
+
+
 ### Drivers
 
 
-| Method | Endpoint           | Description   | Access        |
-| ------ | ------------------ | ------------- | ------------- |
-| POST   | `/api/drivers`     | Create driver | Admin         |
-| GET    | `/api/drivers`     | List drivers  | Admin         |
-| GET    | `/api/drivers/:id` | Get driver    | Authenticated |
-| PUT    | `/api/drivers/:id` | Update driver | Admin         |
-| DELETE | `/api/drivers/:id` | Delete driver | Admin         |
+| Method | Endpoint           | Description                                | Access        |
+| ------ | ------------------ | ------------------------------------------ | ------------- |
+| POST   | `/api/drivers`     | Create driver (multipart, see notes below) | Admin         |
+| GET    | `/api/drivers`     | List drivers                               | Admin         |
+| GET    | `/api/drivers/:id` | Get driver                                 | Authenticated |
+| PUT    | `/api/drivers/:id` | Update driver                              | Admin         |
+| DELETE | `/api/drivers/:id` | Delete driver                              | Admin         |
+
+
+**`POST /api/drivers` request shape (multipart/form-data):** `name`, `phone`, `licenseNumber`, optional `busId`, plus one or more `images` files (same rules as students). `faceId` is generated server-side as the Drive folder ID.
 
 
 ### Attendance

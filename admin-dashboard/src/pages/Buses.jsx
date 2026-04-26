@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
 import Input, { Select } from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
 import Table from "../components/ui/Table";
-import { listBuses, createBus, assignDriver } from "../api/buses";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { listBuses, createBus, assignDriver, deleteBus } from "../api/buses";
 import { listDrivers } from "../api/drivers";
 
 export default function Buses() {
@@ -14,6 +15,7 @@ export default function Buses() {
   const [drivers, setDrivers] = useState([]);
   const [creating, setCreating] = useState(false);
   const [assigning, setAssigning] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const navigate = useNavigate();
 
   const reload = () => {
@@ -53,6 +55,17 @@ export default function Buses() {
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      await deleteBus(deleting.id);
+      toast.success("Bus deleted");
+      setDeleting(null);
+      reload();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -80,6 +93,9 @@ export default function Buses() {
                 </Button>
                 <Button variant="secondary" onClick={(e) => { e.stopPropagation(); setAssigning(b); }}>
                   Assign Driver
+                </Button>
+                <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleting(b); }}>
+                  <Trash2 size={14} className="text-red-600" />
                 </Button>
               </div>
             ),
@@ -125,6 +141,14 @@ export default function Buses() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={handleDelete}
+        title="Delete Bus"
+        message={`Delete ${deleting?.busNumber}? Its route and attendance history will also be deleted. Reassign any students first.`}
+      />
     </div>
   );
 }

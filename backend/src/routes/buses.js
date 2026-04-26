@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { authenticate, authorize } = require("../middleware/auth");
 const {
-  createBus, getAllBuses, getBus, assignDriver,
+  createBus, getAllBuses, getBus, assignDriver, deleteBus,
   getBusLocation, getBusRoute,
 } = require("../controllers/busController");
 const { updateBusLocation } = require("../controllers/busLocationController");
@@ -15,6 +15,7 @@ router.post("/location", authenticate, authorize("bus_system", "admin"), updateB
 router.post("/", authenticate, authorize("admin"), createBus);
 router.get("/", authenticate, authorize("admin"), getAllBuses);
 router.put("/:busId/assign-driver", authenticate, authorize("admin"), assignDriver);
+router.delete("/:id", authenticate, authorize("admin"), deleteBus);
 router.get("/:busId/attendance", authenticate, authorize("admin"), getBusAttendance);
 
 // Accessible to authenticated users
