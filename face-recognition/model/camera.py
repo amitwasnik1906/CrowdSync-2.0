@@ -74,6 +74,46 @@ def open_local_camera(start=0):
     return None, None
 
 
+def open_first_local_camera(start=0, max_index=4):
+    """Probe indices `start..start+max_index-1` and stop at the first working
+    non-virtual camera. Faster than `open_local_camera` because it does NOT
+    enumerate every backend/index combo — it returns as soon as one works.
+
+    Returns (cap, info) where info has keys: index, backend_name, backend.
+    """
+    backends = [
+        ("CAP_MSMF", cv2.CAP_MSMF),
+        ("CAP_DSHOW", cv2.CAP_DSHOW),
+        ("CAP_ANY", cv2.CAP_ANY),
+    ]
+    for index in range(start, start + max_index):
+        for name, backend in backends:
+            cap = cv2.VideoCapture(index, backend)
+            if not cap.isOpened():
+                cap.release()
+                continue
+
+            # Detect virtual cameras inline using the already-open cap.
+            frames = []
+            for _ in range(5):
+                ok, frame = cap.read()
+                if ok:
+                    frames.append(frame)
+
+            if len(frames) < 2:
+                cap.release()
+                continue
+
+            if cv2.absdiff(frames[0], frames[-1]).max() == 0:
+                print(f"⚠️  Skipping camera index={index} ({name}) — static/virtual camera detected.")
+                cap.release()
+                break  # don't try other backends on the same dead/virtual index
+
+            print(f"✅ Opened local camera index={index} backend={name}")
+            return cap, {"index": index, "backend_name": name, "backend": backend}
+    return None, None
+
+
 def open_url_camera(url):
     """Open an HTTP/RTSP stream (e.g. Android 'IP Webcam' app)."""
     cap = cv2.VideoCapture(url)
