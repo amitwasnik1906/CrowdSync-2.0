@@ -1,4 +1,6 @@
-"""Stream a face-image dataset from a shared Google Drive parent folder.
+"""Stream a face-image dataset from a Google Drive parent folder, using
+OAuth user delegation (the same client_secret.json + token.json the backend
+uses).
 
 Layout expected on Drive:
     <parent_folder_id>/
@@ -11,24 +13,64 @@ Layout expected on Drive:
 Use `iter_dataset_from_drive(parent_id)` to yield (label, [image_bytes, ...]).
 """
 import io
+import json
 import os
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 FOLDER_MIME = "application/vnd.google-apps.folder"
+TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+def _read_client_secret(path):
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("installed") or data.get("web") or {}
 
 
 def _get_service():
-    key_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON_PATH")
-    if not key_path:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON_PATH is not set")
-    if not os.path.isfile(key_path):
-        raise RuntimeError(f"Service-account file not found: {key_path}")
+    cs_path = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET_PATH")
+    token_path = os.environ.get("GOOGLE_OAUTH_TOKEN_PATH")
 
-    creds = service_account.Credentials.from_service_account_file(key_path, scopes=SCOPES)
+    if not cs_path or not os.path.isfile(cs_path):
+        raise RuntimeError(
+            "GOOGLE_OAUTH_CLIENT_SECRET_PATH is not set or file is missing"
+        )
+    if not token_path or not os.path.isfile(token_path):
+        raise RuntimeError(
+            "GOOGLE_OAUTH_TOKEN_PATH is not set or file is missing — "
+            "run `node scripts/oauth-init.js` in the backend folder first"
+        )
+
+    cs = _read_client_secret(cs_path)
+    if not cs.get("client_id") or not cs.get("client_secret"):
+        raise RuntimeError(f"Client secret JSON at {cs_path} is missing client_id/client_secret")
+
+    with open(token_path, "r", encoding="utf-8") as f:
+        tokens = json.load(f)
+
+    creds = Credentials(
+        token=tokens.get("access_token"),
+        refresh_token=tokens.get("refresh_token"),
+        token_uri=TOKEN_URI,
+        client_id=cs["client_id"],
+        client_secret=cs["client_secret"],
+        scopes=SCOPES,
+    )
+
+    # If the access token is missing / expired, refresh now using the refresh
+    # token. Don't write back to token.json — the backend owns that file.
+    if not creds.valid:
+        if not creds.refresh_token:
+            raise RuntimeError(
+                "Token file has no refresh_token — run `node scripts/oauth-init.js` again"
+            )
+        creds.refresh(Request())
+
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
@@ -48,6 +90,8 @@ def _list_children(service, parent_id, mime_filter=None):
             fields="nextPageToken, files(id, name, mimeType)",
             pageToken=page_token,
             pageSize=100,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
         ).execute()
         for f in resp.get("files", []):
             yield f
@@ -57,7 +101,7 @@ def _list_children(service, parent_id, mime_filter=None):
 
 
 def _download_bytes(service, file_id):
-    request = service.files().get_media(fileId=file_id)
+    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
     buf = io.BytesIO()
     downloader = MediaIoBaseDownload(buf, request)
     done = False

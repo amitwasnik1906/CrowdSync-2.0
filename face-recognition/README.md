@@ -53,22 +53,21 @@ Create `dataset/<Name>/` and drop a few clear face photos (3–10 is plenty). Fo
 
 ### Option B — Google Drive (admin dashboard enrollment)
 
-Students enrolled via the admin dashboard get a per-student subfolder under a shared Drive parent. Point this tool at that parent folder and it'll pull images directly.
+Students enrolled via the admin dashboard get a per-student subfolder under a Drive parent. Point this tool at that parent folder and it'll pull images directly. The Python tool re-uses the OAuth credentials the backend already set up — there's nothing extra to configure on Google's side.
 
-1. **Enable** the Google Drive API in a GCP project.
-2. **Create** a service account; download its JSON key.
-3. **Share** your "CrowdSync Faces" parent folder with the service-account email as **Viewer** (read-only is enough for this tool; the backend writes with its own credentials).
-4. Copy `sample.env` to `.env` in the `face-recognition/` folder and fill it in:
+1. **Set up OAuth on the backend first** (one-time): in `backend/`, run `node scripts/oauth-init.js`. That writes `client_secret.json` + `token.json` to your `credential/` folder.
+2. Copy `sample.env` to `.env` in the `face-recognition/` folder:
 
    ```bash
    cp sample.env .env       # macOS/Linux
    copy sample.env .env     # Windows (cmd)
    ```
 
-   Then edit `.env`:
+3. Edit `.env` and point both paths at the same files the backend wrote, plus the Drive parent folder ID:
 
    ```ini
-   GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./credentials/service-account.json
+   GOOGLE_OAUTH_CLIENT_SECRET_PATH=E:\PROJECTS\CrowdSync 2.0\credential\client_secret.json
+   GOOGLE_OAUTH_TOKEN_PATH=E:\PROJECTS\CrowdSync 2.0\credential\token.json
    DRIVE_PARENT_FOLDER_ID=<the-folder-id-from-the-Drive-URL>
    ```
 
@@ -76,7 +75,9 @@ Students enrolled via the admin dashboard get a per-student subfolder under a sh
 
    Real OS environment variables override the `.env` file, so you can also export them in a shell instead.
 
-5. Run as usual. Startup will print `Building database from Drive (parent ...)` and list each student folder it found.
+4. Run as usual. Startup will print `Building database from Drive (parent ...)` and list each student folder it found.
+
+> **Refresh-token caveat**: while your OAuth consent screen is in "Testing" mode, Google revokes the refresh token after 7 days. If reads suddenly fail with an auth error, re-run `node scripts/oauth-init.js` in the backend.
 
 Unset `DRIVE_PARENT_FOLDER_ID` to fall back to the local dataset.
 
@@ -126,5 +127,6 @@ Recognition threshold is the `RECOGNITION_THRESHOLD` constant at the top of `mod
 - **IP Webcam stream won't open** — phone and PC must be on the same Wi-Fi; the URL shown by the app is what you paste in.
 - **Everyone matches as the same person** — your dataset photos are too few or too similar. Add more varied shots and lower the threshold.
 - **TensorFlow install fails** — most often a Python version mismatch. Use 3.9–3.11.
-- **`GOOGLE_SERVICE_ACCOUNT_JSON_PATH is not set`** — Drive mode was selected (env var present) but no creds path was given. Either set both env vars or unset `DRIVE_PARENT_FOLDER_ID` to use local mode.
-- **Drive returns 0 student folders** — confirm the parent folder is shared with the service-account email (look for `*-iam.gserviceaccount.com` in the Share dialog).
+- **`GOOGLE_OAUTH_TOKEN_PATH is not set or file is missing`** — you haven't run the backend's `node scripts/oauth-init.js` yet, or your `.env` paths point at a different location than where the backend wrote the token.
+- **`Token file has no refresh_token`** — Google only emits a refresh token on the FIRST consent. If you re-ran the init too quickly without revoking, you'll get an empty one. Revoke at [myaccount.google.com/permissions](https://myaccount.google.com/permissions) and re-run.
+- **Drive returns 0 student folders** — verify `DRIVE_PARENT_FOLDER_ID` is the long ID from the folder's URL, not the folder name.

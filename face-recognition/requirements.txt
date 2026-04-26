@@ -7,4 +7,5 @@ tensorflow>=2.12
 colorama>=0.4.6
 google-api-python-client>=2.120
 google-auth>=2.30
+google-auth-oauthlib>=1.2
 python-dotenv>=1.0
