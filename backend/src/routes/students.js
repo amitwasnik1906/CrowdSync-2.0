@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { authenticate, authorize } = require("../middleware/auth");
+const upload = require("../middleware/upload");
 const {
   listStudents, createStudent, getStudent, updateStudent, deleteStudent,
   getStudentAttendance,
@@ -11,7 +12,7 @@ router.get("/:studentId/attendance", authenticate, getStudentAttendance);
 
 // Admin-only CRUD
 router.get("/", authenticate, authorize("admin"), listStudents);
-router.post("/", authenticate, authorize("admin"), createStudent);
+router.post("/", authenticate, authorize("admin"), upload.array("images", 10), createStudent);
 router.get("/:id", authenticate, authorize("admin"), getStudent);
 router.put("/:id", authenticate, authorize("admin"), updateStudent);
 router.delete("/:id", authenticate, authorize("admin"), deleteStudent);

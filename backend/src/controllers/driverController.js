@@ -1,22 +1,41 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
+const driveService = require("../services/driveService");
 
 // POST /api/drivers (ADMIN)
+// Multipart: text fields (name, phone, licenseNumber, busId) + images[] file field.
+// faceId is generated server-side from the new Drive folder ID.
 async function createDriver(req, res, next) {
-  try {
-    const { name, phone, licenseNumber, busId, faceId } = req.body;
+  const { name, phone, licenseNumber } = req.body;
+  const busId = req.body.busId ? parseInt(req.body.busId, 10) : null;
+  const files = req.files || [];
 
-    if (!name || !phone || !licenseNumber || !faceId) {
-      return error(res, "name, phone, licenseNumber, and faceId are required", 400);
+  if (!name || !phone || !licenseNumber) {
+    return error(res, "name, phone, and licenseNumber are required", 400);
+  }
+  if (files.length === 0) {
+    return error(res, "At least one face image is required", 400);
+  }
+
+  let folderId = null;
+  try {
+    const folder = await driveService.createPersonFolder(name);
+    folderId = folder.folderId;
+
+    for (const f of files) {
+      await driveService.uploadImage(folderId, f.buffer, f.mimetype, f.originalname);
     }
 
     const driver = await prisma.driver.create({
-      data: { name, phone, licenseNumber, faceId, busId: busId || null },
+      data: { name, phone, licenseNumber, faceId: folderId, busId },
       include: { bus: { select: { id: true, busNumber: true } } },
     });
 
     return success(res, driver, 201);
   } catch (err) {
+    if (folderId) {
+      await driveService.deleteFolder(folderId);
+    }
     next(err);
   }
 }
