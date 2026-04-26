@@ -1,0 +1,26 @@
+# Python bytecode
+model/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Captured frames (regenerated each run)
+live_capture.jpg
+
+# Service-account credentials — never commit
+*service-account*.json
+credentials/
+
+# Local env config — copy from sample.env, never commit
+.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,4 +1,5 @@
 """Attendance loop entry point. Run with `python -m model.main` or via `run.py`."""
+import os
 from pathlib import Path
 
 from .face_utils import color
@@ -10,6 +11,18 @@ from .capture import capture_from_stream
 DATASET_PATH = Path(__file__).resolve().parent.parent / "dataset"
 CAPTURED_IMAGE = "live_capture.jpg"
 RECOGNITION_THRESHOLD = 0.5
+
+
+def _build_face_database():
+    """Pick the dataset source. If DRIVE_PARENT_FOLDER_ID is set, stream from
+    Google Drive; otherwise fall back to the local `dataset/` folder."""
+    drive_parent = os.environ.get("DRIVE_PARENT_FOLDER_ID")
+    if drive_parent:
+        from .drive_source import iter_dataset_from_drive
+        print(f"⏳ Building database from Drive (parent {drive_parent})...")
+        return build_database(iter_dataset_from_drive(drive_parent))
+    print(f"⏳ Building database from local folder ({DATASET_PATH})...")
+    return build_database(str(DATASET_PATH))
 
 
 def _recognize(filename, face_database, marked):
@@ -37,8 +50,7 @@ def _recognize(filename, face_database, marked):
 
 
 def main():
-    print("⏳ Building database...")
-    face_database = build_database(str(DATASET_PATH))
+    face_database = _build_face_database()
     print(f"✅ Database ready ({len(face_database)} people).")
 
     marked = set()
