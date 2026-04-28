@@ -287,8 +287,8 @@ Connect to the server using Socket.io client at `http://localhost:5000`.
 | Event               | Payload                                            | Description                  |
 | ------------------- | -------------------------------------------------- | ---------------------------- |
 | `busLocationUpdate` | `{ busId, latitude, longitude, speed, timestamp }` | Real-time bus location       |
-| `studentEntry`      | `{ studentId, studentName, busId, entryTime }`     | Student boarded the bus      |
-| `studentExit`       | `{ studentId, studentName, busId, exitTime }`      | Student exited the bus       |
+| `studentEntry`      | `{ studentId, studentName, busId, time, locationName }` | Student boarded the bus      |
+| `studentExit`       | `{ studentId, studentName, busId, time, locationName }` | Student exited the bus       |
 | `notification`      | `{ id, title, body, type, createdAt }`             | Push notification for parent |
 
 

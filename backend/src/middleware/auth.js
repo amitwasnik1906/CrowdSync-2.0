@@ -42,4 +42,21 @@ function generateToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-module.exports = { authenticate, authorize, generateToken };
+/**
+ * Authenticate the face-recognition system via static API key.
+ * Reads X-API-Key header and compares against FACE_SYSTEM_API_KEY env var.
+ */
+function authenticateFaceSystem(req, res, next) {
+  const expected = process.env.FACE_SYSTEM_API_KEY;
+  if (!expected) {
+    return error(res, "FACE_SYSTEM_API_KEY is not configured on the server", 500);
+  }
+  const provided = req.headers["x-api-key"];
+  if (!provided || provided !== expected) {
+    return error(res, "Invalid or missing X-API-Key", 401);
+  }
+  req.user = { role: "bus_system" };
+  next();
+}
+
+module.exports = { authenticate, authorize, generateToken, authenticateFaceSystem };

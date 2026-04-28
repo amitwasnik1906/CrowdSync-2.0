@@ -4,8 +4,8 @@ export type AttendanceRecord = {
   id: number;
   studentId: number;
   busId: number;
-  entryTime?: string | null;
-  exitTime?: string | null;
+  type: 'entry' | 'exit';
+  time: string;
   locationName?: string | null;
   date: string;
   createdAt: string;

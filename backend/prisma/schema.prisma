@@ -88,12 +88,14 @@ model Driver {
 }
 
 model Attendance {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   studentId Int
   busId     Int
 
-  entryTime DateTime?
-  exitTime  DateTime?
+  // One row = one event. `type` is "entry" or "exit", `time` is when it happened,
+  // `locationName` is where it happened.
+  type String
+  time DateTime
 
   locationName String?
   date         DateTime @default(now()) @db.Date

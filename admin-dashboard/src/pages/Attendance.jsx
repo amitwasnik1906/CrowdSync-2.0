@@ -58,18 +58,23 @@ export default function Attendance() {
         columns={[
           { key: "student", label: "Student", render: (a) => a.student?.name || "—" },
           { key: "class", label: "Class", render: (a) => a.student?.class || "—" },
-          { key: "entryTime", label: "Boarded", render: (a) => a.entryTime ? new Date(a.entryTime).toLocaleTimeString() : "—" },
-          { key: "exitTime", label: "Exited", render: (a) => a.exitTime ? new Date(a.exitTime).toLocaleTimeString() : "—" },
           {
-            key: "duration",
-            label: "Duration",
-            render: (a) => {
-              if (!a.entryTime || !a.exitTime) return "—";
-              const ms = new Date(a.exitTime) - new Date(a.entryTime);
-              const mins = Math.round(ms / 60000);
-              return `${mins} min`;
-            },
+            key: "type",
+            label: "Event",
+            render: (a) => (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  a.type === "entry"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {a.type === "entry" ? "Boarded" : "Exited"}
+              </span>
+            ),
           },
+          { key: "time", label: "Time", render: (a) => a.time ? new Date(a.time).toLocaleTimeString() : "—" },
+          { key: "locationName", label: "Location", render: (a) => a.locationName || "—" },
         ]}
         data={rows}
         empty="No attendance records for this day"

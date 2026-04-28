@@ -78,28 +78,25 @@ async function main() {
 
   console.log("Student created:", student.name);
 
-  // Create sample attendance (last 3 days) — idempotent per (studentId, date)
+  // Create sample attendance (last 3 days) — one row per event.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const attendanceDays = [
     {
       dayOffset: 0,
-      entry: { h: 7, m: 30 },
+      entry: { h: 7, m: 30, location: "Pickup Point A" },
       exit: null, // still on the bus today
-      locationName: "Main Gate",
     },
     {
       dayOffset: -1,
-      entry: { h: 7, m: 28 },
-      exit: { h: 14, m: 45 },
-      locationName: "Main Gate",
+      entry: { h: 7, m: 28, location: "Pickup Point A" },
+      exit:  { h: 14, m: 45, location: "Main Gate" },
     },
     {
       dayOffset: -2,
-      entry: { h: 7, m: 32 },
-      exit: { h: 14, m: 40 },
-      locationName: "Main Gate",
+      entry: { h: 7, m: 32, location: "Pickup Point A" },
+      exit:  { h: 14, m: 40, location: "Main Gate" },
     },
   ];
 
@@ -112,22 +109,27 @@ async function main() {
     });
     if (existing) continue;
 
-    const entryTime = new Date(date);
-    entryTime.setHours(a.entry.h, a.entry.m, 0, 0);
+    const events = [
+      { type: "entry", h: a.entry.h, m: a.entry.m, location: a.entry.location },
+      ...(a.exit
+        ? [{ type: "exit", h: a.exit.h, m: a.exit.m, location: a.exit.location }]
+        : []),
+    ];
 
-    const exitTime = a.exit ? new Date(date) : null;
-    if (exitTime) exitTime.setHours(a.exit.h, a.exit.m, 0, 0);
-
-    await prisma.attendance.create({
-      data: {
-        studentId: student.id,
-        busId: bus.id,
-        entryTime,
-        exitTime,
-        locationName: a.locationName,
-        date,
-      },
-    });
+    for (const ev of events) {
+      const time = new Date(date);
+      time.setHours(ev.h, ev.m, 0, 0);
+      await prisma.attendance.create({
+        data: {
+          studentId: student.id,
+          busId: bus.id,
+          type: ev.type,
+          time,
+          locationName: ev.location,
+          date,
+        },
+      });
+    }
   }
 
   console.log(`Attendance seeded for ${student.name} (last 3 days)`);

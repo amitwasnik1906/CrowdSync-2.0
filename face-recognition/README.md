@@ -106,7 +106,36 @@ In the preview window:
 - **Q / Esc** → cancel current capture and exit.
 - **N** (local webcam mode only) → cycle to the next available camera.
 
-When the 5s window expires, the sharpest stored frame is saved to `live_capture.jpg` and recognition runs. Matched people are added to a session set so they aren't marked twice.
+When the 5s window expires, the sharpest stored frame is saved to `live_capture.jpg` and recognition runs. After a successful match, the terminal prompts:
+
+```
+Mark [E]ntry / e[X]it / [S]kip ?
+```
+
+Type `E` to mark entry, `X` to mark exit, or `S` to skip. The same person+mode combo won't be sent twice in a session.
+
+## Sending attendance to the backend
+
+After a face matches, the matched folder name (which is the student's `faceId`)
+is POSTed to `POST /api/attendance/face` on the backend. The backend looks up
+the student by faceId, derives their bus, and marks entry or exit depending on
+the current mode.
+
+Add these to `face-recognition/.env`:
+
+```ini
+BACKEND_API_URL=http://localhost:5000
+BACKEND_API_KEY=<same value as FACE_SYSTEM_API_KEY in backend/.env>
+```
+
+And on the backend (`backend/.env`):
+
+```ini
+FACE_SYSTEM_API_KEY=<long random string>
+```
+
+The Python tool sends the key as `X-API-Key`. If either value is missing, face
+matches are still printed locally but no attendance is sent.
 
 ## Tuning
 

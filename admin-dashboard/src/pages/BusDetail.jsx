@@ -87,8 +87,23 @@ export default function BusDetail() {
               columns={[
                 { key: "student", label: "Student", render: (a) => a.student?.name || "—" },
                 { key: "class", label: "Class", render: (a) => a.student?.class || "—" },
-                { key: "entryTime", label: "Boarded", render: (a) => a.entryTime ? new Date(a.entryTime).toLocaleTimeString() : "—" },
-                { key: "exitTime", label: "Exited", render: (a) => a.exitTime ? new Date(a.exitTime).toLocaleTimeString() : "—" },
+                {
+                  key: "type",
+                  label: "Event",
+                  render: (a) => (
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        a.type === "entry"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {a.type === "entry" ? "Boarded" : "Exited"}
+                    </span>
+                  ),
+                },
+                { key: "time", label: "Time", render: (a) => a.time ? new Date(a.time).toLocaleTimeString() : "—" },
+                { key: "locationName", label: "Location", render: (a) => a.locationName || "—" },
               ]}
               data={attendance}
               empty="No boarding events yet"
@@ -136,7 +151,7 @@ export default function BusDetail() {
                     )}
                     <span className="text-slate-700">{e.studentName}</span>
                     <span className="ml-auto text-xs text-slate-400">
-                      {new Date(e.entryTime || e.exitTime).toLocaleTimeString()}
+                      {new Date(e.time).toLocaleTimeString()}
                     </span>
                   </li>
                 ))}

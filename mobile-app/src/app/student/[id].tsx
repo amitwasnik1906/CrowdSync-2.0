@@ -23,6 +23,18 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+// API returns rows ordered by time desc. Group sequential rows with the same
+// `date` together so we can render one card per day.
+function groupByDate(rows: AttendanceRecord[]) {
+  const groups: { date: string; events: AttendanceRecord[] }[] = [];
+  for (const r of rows) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === r.date) last.events.push(r);
+    else groups.push({ date: r.date, events: [r] });
+  }
+  return groups;
+}
+
 export default function StudentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const studentId = Number(id);
@@ -67,8 +79,9 @@ export default function StudentDetail() {
     );
   }
 
-  const today = records[0];
-  const onBusNow = !!today?.entryTime && !today?.exitTime;
+  const grouped = groupByDate(records);
+  const lastEvent = records[0]; // newest event overall
+  const onBusNow = lastEvent?.type === 'entry';
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -98,26 +111,36 @@ export default function StudentDetail() {
 
         <Text style={styles.sectionTitle}>Attendance history</Text>
 
-        {records.length === 0 ? (
+        {grouped.length === 0 ? (
           <Text style={styles.empty}>No records yet.</Text>
         ) : (
-          records.map((r) => (
-            <View key={r.id} style={styles.attRow}>
+          grouped.map((g) => (
+            <View key={g.date} style={styles.attRow}>
               <View style={styles.attDate}>
-                <Text style={styles.attDateText}>{fmtDate(r.date)}</Text>
+                <Text style={styles.attDateText}>{fmtDate(g.date)}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <View style={styles.attLine}>
-                  <Text style={styles.attLabel}>Entry</Text>
-                  <Text style={styles.attValue}>{fmtTime(r.entryTime)}</Text>
-                </View>
-                <View style={styles.attLine}>
-                  <Text style={styles.attLabel}>Exit</Text>
-                  <Text style={styles.attValue}>{fmtTime(r.exitTime)}</Text>
-                </View>
-                {r.locationName && (
-                  <Text style={styles.attLoc}>📍 {r.locationName}</Text>
-                )}
+                {g.events.map((ev) => (
+                  <View key={ev.id} style={styles.attLine}>
+                    <View style={[
+                      styles.eventPill,
+                      ev.type === 'entry' ? styles.pillLive : styles.pillExit,
+                    ]}>
+                      <Text style={[
+                        styles.eventPillText,
+                        ev.type === 'entry' ? styles.pillLiveText : styles.pillExitText,
+                      ]}>
+                        {ev.type === 'entry' ? 'Boarded' : 'Exited'}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.attValue}>{fmtTime(ev.time)}</Text>
+                      {ev.locationName && (
+                        <Text style={styles.attLoc}>📍 {ev.locationName}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
               </View>
             </View>
           ))
@@ -163,10 +186,14 @@ const styles = StyleSheet.create({
   },
   attDate: { width: 90 },
   attDateText: { fontSize: 13, fontWeight: '600', color: '#111' },
-  attLine: { flexDirection: 'row', justifyContent: 'space-between' },
+  attLine: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   attLabel: { fontSize: 13, color: '#666' },
   attValue: { fontSize: 13, color: '#111', fontWeight: '500' },
-  attLoc: { fontSize: 11, color: '#888', marginTop: 4 },
+  attLoc: { fontSize: 11, color: '#888', marginTop: 2 },
+  eventPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, alignSelf: 'flex-start' },
+  eventPillText: { fontSize: 11, fontWeight: '600' },
+  pillExit: { backgroundColor: '#fef3c7' },
+  pillExitText: { color: '#92400e' },
   empty: { textAlign: 'center', color: '#888', marginTop: 16 },
   error: { color: '#dc2626' },
 });

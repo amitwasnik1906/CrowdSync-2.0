@@ -2,62 +2,64 @@ const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
 const { reverseGeocode } = require("../utils/geocode");
 
+// Shared logic: write one Attendance row for the given event and emit a WS event.
+async function recordEvent(req, { studentId, busId, type, latitude, longitude }) {
+  if (type !== "entry" && type !== "exit") {
+    throw new Error(`Invalid attendance type: ${type}`);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const locationName =
+    latitude !== undefined && longitude !== undefined
+      ? await reverseGeocode(latitude, longitude)
+      : null;
+
+  const attendance = await prisma.attendance.create({
+    data: {
+      studentId,
+      busId,
+      type,
+      time: new Date(),
+      locationName,
+      date: today,
+    },
+    include: {
+      student: { select: { id: true, name: true, parentId: true } },
+    },
+  });
+
+  await prisma.bus.update({
+    where: { id: busId },
+    data: { occupancy: { [type === "entry" ? "increment" : "decrement"]: 1 } },
+  });
+
+  const io = req.app.get("io");
+  if (io) {
+    const event = type === "entry" ? "studentEntry" : "studentExit";
+    io.to(`bus_${busId}`).emit(event, {
+      studentId: attendance.student.id,
+      studentName: attendance.student.name,
+      busId,
+      time: attendance.time,
+      locationName: attendance.locationName,
+    });
+  }
+
+  return attendance;
+}
+
 // POST /api/attendance/entry (BUS SYSTEM)
 async function markEntry(req, res, next) {
   try {
     const { studentId, busId, latitude, longitude } = req.body;
-
     if (!studentId || !busId) {
       return error(res, "studentId and busId are required", 400);
     }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Check if already boarded today
-    const existing = await prisma.attendance.findFirst({
-      where: { studentId, busId, date: today, exitTime: null },
+    const attendance = await recordEvent(req, {
+      studentId, busId, type: "entry", latitude, longitude,
     });
-
-    if (existing) {
-      return error(res, "Student already boarded this bus today", 409);
-    }
-
-    const locationName =
-      latitude !== undefined && longitude !== undefined
-        ? await reverseGeocode(latitude, longitude)
-        : null;
-
-    const attendance = await prisma.attendance.create({
-      data: {
-        studentId,
-        busId,
-        entryTime: new Date(),
-        locationName,
-        date: today,
-      },
-      include: {
-        student: { select: { id: true, name: true, parentId: true } },
-      },
-    });
-
-    // Increment bus occupancy
-    await prisma.bus.update({
-      where: { id: busId },
-      data: { occupancy: { increment: 1 } },
-    });
-
-    // Emit WebSocket event
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`bus_${busId}`).emit("studentEntry", {
-        studentId: attendance.student.id,
-        studentName: attendance.student.name,
-        busId,
-        entryTime: attendance.entryTime,
-      });
-    }
-
     return success(res, attendance, 201);
   } catch (err) {
     next(err);
@@ -68,57 +70,13 @@ async function markEntry(req, res, next) {
 async function markExit(req, res, next) {
   try {
     const { studentId, busId, latitude, longitude } = req.body;
-
     if (!studentId || !busId) {
       return error(res, "studentId and busId are required", 400);
     }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const attendance = await prisma.attendance.findFirst({
-      where: { studentId, busId, date: today, exitTime: null },
-      orderBy: { createdAt: "desc" },
+    const attendance = await recordEvent(req, {
+      studentId, busId, type: "exit", latitude, longitude,
     });
-
-    if (!attendance) {
-      return error(res, "No active entry found for this student on this bus today", 404);
-    }
-
-    const locationName =
-      latitude !== undefined && longitude !== undefined
-        ? await reverseGeocode(latitude, longitude)
-        : null;
-
-    const updated = await prisma.attendance.update({
-      where: { id: attendance.id },
-      data: {
-        exitTime: new Date(),
-        ...(locationName ? { locationName } : {}),
-      },
-      include: {
-        student: { select: { id: true, name: true, parentId: true } },
-      },
-    });
-
-    // Decrement bus occupancy
-    await prisma.bus.update({
-      where: { id: busId },
-      data: { occupancy: { decrement: 1 } },
-    });
-
-    // Emit WebSocket event
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`bus_${busId}`).emit("studentExit", {
-        studentId: updated.student.id,
-        studentName: updated.student.name,
-        busId,
-        exitTime: updated.exitTime,
-      });
-    }
-
-    return success(res, updated);
+    return success(res, attendance, 201);
   } catch (err) {
     next(err);
   }
@@ -139,7 +97,7 @@ async function getBusAttendance(req, res, next) {
 
     const attendance = await prisma.attendance.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { time: "desc" },
       include: {
         student: {
           select: { id: true, name: true, class: true },
@@ -153,4 +111,40 @@ async function getBusAttendance(req, res, next) {
   }
 }
 
-module.exports = { markEntry, markExit, getBusAttendance };
+// POST /api/attendance/face (FACE-RECOGNITION SYSTEM via X-API-Key)
+// Body: { faceId, mode: "entry" | "exit", latitude?, longitude? }
+async function markByFace(req, res, next) {
+  try {
+    const { faceId, mode, latitude, longitude } = req.body;
+
+    if (!faceId || !mode) {
+      return error(res, "faceId and mode are required", 400);
+    }
+    if (mode !== "entry" && mode !== "exit") {
+      return error(res, "mode must be 'entry' or 'exit'", 400);
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { faceId },
+      select: { id: true, busId: true },
+    });
+
+    if (!student) {
+      return error(res, `No student found for faceId '${faceId}'`, 404);
+    }
+
+    const attendance = await recordEvent(req, {
+      studentId: student.id,
+      busId: student.busId,
+      type: mode,
+      latitude,
+      longitude,
+    });
+
+    return success(res, attendance, 201);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { markEntry, markExit, markByFace, getBusAttendance };

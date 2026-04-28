@@ -6,6 +6,7 @@ from .face_utils import color
 from .database import build_database, find_match
 from .camera import open_first_local_camera
 from .capture import capture_from_stream
+from .attendance_api import AttendanceClient
 
 
 DATASET_PATH = Path(__file__).resolve().parent.parent / "dataset"
@@ -25,7 +26,20 @@ def _build_face_database():
     return build_database(str(DATASET_PATH))
 
 
-def _recognize(filename, face_database, marked):
+def _prompt_mode():
+    """Ask the operator at the terminal whether this match is entry or exit."""
+    while True:
+        choice = input("Mark [E]ntry / e[X]it / [S]kip ? ").strip().lower()
+        if choice in ("e", "entry", ""):
+            return "entry"
+        if choice in ("x", "exit"):
+            return "exit"
+        if choice in ("s", "skip"):
+            return None
+        print("  Please type E, X, or S.")
+
+
+def _recognize(filename, face_database, attendance):
     print('Image captured successfully!')
     print("\nPerforming face detection and recognition...")
     result = find_match(filename, face_database, threshold=RECOGNITION_THRESHOLD)
@@ -35,11 +49,24 @@ def _recognize(filename, face_database, marked):
         if predicted_name != 'Unknown':
             print(f"Face detected! Matched with: {color.GREEN}{predicted_name}{color.END} "
                   f"(Cosine Distance: {distance:.3f})")
-            if predicted_name not in marked:
-                marked.add(predicted_name)
-                print(f"✅ {predicted_name} marked present.")
+
+            mode = _prompt_mode()
+            if mode is None:
+                print("⏭️  Skipped.")
+                return
+
+            if not attendance.configured():
+                print(f"{color.RED}Backend not configured — skipping attendance.{color.END}")
+                return
+
+            # Backend is the source of truth: it returns 409 if a student tries
+            # to board while already on the bus, or 404 if exit is sent without
+            # an open entry. Multiple round-trips per day are allowed.
+            ok, message = attendance.mark(predicted_name, mode)
+            if ok:
+                print(f"✅ {message}")
             else:
-                print(f"ℹ️  {predicted_name} already marked.")
+                print(f"{color.RED}❌ {message}{color.END}")
         else:
             print(f"Face detected, but no match found in database. Closest distance: "
                   f"{distance:.3f}. (Result: {color.RED}Unknown{color.END})")
@@ -53,7 +80,13 @@ def main():
     face_database = _build_face_database()
     print(f"✅ Database ready ({len(face_database)} people).")
 
-    marked = set()
+    attendance = AttendanceClient()
+    if attendance.configured():
+        print(f"✅ Backend attendance API: {attendance.base_url}")
+    else:
+        print(f"{color.RED}⚠️  BACKEND_API_URL / BACKEND_API_KEY not set — "
+              f"matches will be logged only.{color.END}")
+
     start_index = 0
 
     try:
@@ -73,7 +106,7 @@ def main():
                         hint="Auto-capture on face — N = next cam, Q = cancel",
                     )
                     if action == "saved":
-                        _recognize(val, face_database, marked)
+                        _recognize(val, face_database, attendance)
                         print("\nStarting next capture...\n")
                         continue
                     if action == "next":
@@ -83,7 +116,7 @@ def main():
             finally:
                 cap.release()
     finally:
-        print(f"\nSession complete. Marked present: {sorted(marked) if marked else 'none'}")
+        print("\nSession complete.")
 
 
 if __name__ == "__main__":
