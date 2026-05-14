@@ -33,6 +33,10 @@ function AuthGate() {
         name="bus/[id]"
         options={{ headerShown: true, title: 'Bus' }}
       />
+      <Stack.Screen
+        name="bus/[id]/history"
+        options={{ headerShown: true, title: 'Bus History' }}
+      />
     </Stack>
   );
 }

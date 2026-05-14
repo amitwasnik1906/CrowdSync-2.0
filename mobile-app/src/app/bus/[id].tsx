@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,13 +15,18 @@ import polyline from '@mapbox/polyline';
 
 import {
   getBus,
+  getBusHistory,
   getBusLocation,
   getBusRoute,
   type Bus,
+  type BusDayHistory,
   type BusLocation,
   type BusRoute,
 } from '@/api/buses';
 import { useBusSocket, useSocketStatus } from '@/lib/socket';
+
+const COLOR_PLANNED = '#94a3b8';
+const COLOR_TRAVELED = '#4f46e5';
 
 function fmtAgo(iso?: string | null) {
   if (!iso) return '—';
@@ -40,10 +45,20 @@ export default function BusDetail() {
   const [bus, setBus] = useState<Bus | null>(null);
   const [route, setRoute] = useState<BusRoute | null>(null);
   const [loc, setLoc] = useState<BusLocation | null>(null);
+  const [todayHistory, setTodayHistory] = useState<BusDayHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const connected = useSocketStatus();
   const mapRef = useRef<MapView | null>(null);
+
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const fetchTodayHistory = React.useCallback(() => {
+    if (!busId) return;
+    getBusHistory(busId, todayKey)
+      .then((h) => setTodayHistory(h))
+      .catch(() => setTodayHistory(null));
+  }, [busId, todayKey]);
 
   useEffect(() => {
     (async () => {
@@ -63,10 +78,20 @@ export default function BusDetail() {
         setLoading(false);
       }
     })();
-  }, [busId]);
+    fetchTodayHistory();
+  }, [busId, fetchTodayHistory]);
+
+  const lastTraveledRefetchRef = useRef(0);
 
   useBusSocket(busId || null, (update) => {
     setLoc(update);
+    // Server appends a new history point every ~1 km. Refetch at most every 20 s
+    // so the traveled polyline grows in near-real-time without spamming the API.
+    const now = Date.now();
+    if (now - lastTraveledRefetchRef.current > 20000) {
+      lastTraveledRefetchRef.current = now;
+      fetchTodayHistory();
+    }
   });
 
   const routeCoords = useMemo(() => {
@@ -82,10 +107,22 @@ export default function BusDetail() {
 
   const stops = route?.stops ?? [];
 
-  // Auto-fit the map to the polyline + stops + bus position when route loads
+  const traveledCoords = useMemo(
+    () =>
+      (todayHistory?.points ?? []).map((p) => ({
+        latitude: p.lat,
+        longitude: p.lng,
+      })),
+    [todayHistory]
+  );
+
+  // Auto-fit the map to the planned route + stops + traveled trail + live position
   useEffect(() => {
     if (!mapRef.current) return;
-    const points: { latitude: number; longitude: number }[] = [...routeCoords];
+    const points: { latitude: number; longitude: number }[] = [
+      ...routeCoords,
+      ...traveledCoords,
+    ];
     stops.forEach((s) => points.push({ latitude: s.lat, longitude: s.lng }));
     if (loc?.latitude != null && loc?.longitude != null) {
       points.push({ latitude: loc.latitude, longitude: loc.longitude });
@@ -103,7 +140,7 @@ export default function BusDetail() {
       edgePadding: { top: 60, right: 40, bottom: 60, left: 40 },
       animated: true,
     });
-  }, [routeCoords, stops, loc?.latitude, loc?.longitude]);
+  }, [routeCoords, traveledCoords, stops, loc?.latitude, loc?.longitude]);
 
   const occupancyPct = bus
     ? Math.min(100, Math.round((bus.occupancy / Math.max(1, bus.capacity)) * 100))
@@ -178,8 +215,20 @@ export default function BusDetail() {
             style={styles.map}
             initialRegion={initialRegion}
           >
-            {routeCoords.length > 0 && (
-              <MapPolyline coordinates={routeCoords} strokeColor="#4f46e5" strokeWidth={4} />
+            {traveledCoords.length > 1 && (
+              <MapPolyline
+                coordinates={traveledCoords}
+                strokeColor={COLOR_TRAVELED}
+                strokeWidth={4}
+              />
+            )}
+            {routeCoords.length > 1 && (
+              <MapPolyline
+                coordinates={routeCoords}
+                strokeColor={COLOR_PLANNED}
+                strokeWidth={5}
+                lineDashPattern={[6, 6]}
+              />
             )}
             {stops.map((s, i) => (
               <Marker
@@ -187,8 +236,12 @@ export default function BusDetail() {
                 coordinate={{ latitude: s.lat, longitude: s.lng }}
                 title={s.name || `Stop ${i + 1}`}
                 description={`Stop ${i + 1}`}
-                pinColor="#4f46e5"
-              />
+                anchor={{ x: 0.5, y: 0.5 }}
+              >
+                <View style={styles.plannedStopMarker}>
+                  <Text style={styles.plannedStopMarkerText}>{i + 1}</Text>
+                </View>
+              </Marker>
             ))}
             {hasLive && (
               <Marker
@@ -212,6 +265,16 @@ export default function BusDetail() {
                 : 'Waiting for the bus to report'}
             </Text>
           </View>
+          <View style={styles.legend}>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatchSolid, { backgroundColor: COLOR_TRAVELED }]} />
+              <Text style={styles.legendText}>Traveled</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatchDashed, { borderColor: COLOR_PLANNED }]} />
+              <Text style={styles.legendText}>Planned</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -233,6 +296,13 @@ export default function BusDetail() {
             </TouchableOpacity>
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => router.push(`/bus/${busId}/history` as never)}
+        >
+          <Text style={styles.historyButtonText}>View past dates</Text>
+        </TouchableOpacity>
 
         {stops.length > 0 && (
           <View style={styles.card}>
@@ -289,6 +359,35 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   mapBadgeText: { fontSize: 12, color: '#111', fontWeight: '500' },
+  legend: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    elevation: 2,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  legendSwatchSolid: {
+    width: 18,
+    height: 4,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  legendSwatchDashed: {
+    width: 18,
+    height: 0,
+    borderTopWidth: 3,
+    borderStyle: 'dashed',
+    marginRight: 8,
+  },
+  legendText: { fontSize: 12, color: '#111', fontWeight: '500' },
   busMarker: {
     backgroundColor: '#10b981',
     width: 36,
@@ -305,6 +404,21 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   busMarkerText: { fontSize: 18 },
+  plannedStopMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLOR_PLANNED,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plannedStopMarkerText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   metaText: { fontSize: 13, color: '#666', marginTop: 2 },
@@ -325,4 +439,12 @@ const styles = StyleSheet.create({
   stopBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   stopName: { fontSize: 13, color: '#111', flex: 1 },
   error: { color: '#dc2626' },
+  historyButton: {
+    backgroundColor: '#4f46e5',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  historyButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });

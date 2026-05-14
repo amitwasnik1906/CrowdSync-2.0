@@ -4,6 +4,7 @@ const { authenticate, authorize } = require("../middleware/auth");
 const {
   createBus, getAllBuses, getBus, assignDriver, deleteBus,
   getBusLocation, getBusRoute,
+  getBusHistoryDates, getBusHistory,
 } = require("../controllers/busController");
 const { updateBusLocation } = require("../controllers/busLocationController");
 const { getBusAttendance } = require("../controllers/attendanceController");
@@ -22,5 +23,7 @@ router.get("/:busId/attendance", authenticate, authorize("admin"), getBusAttenda
 router.get("/:id", authenticate, getBus);
 router.get("/:busId/location", authenticate, getBusLocation);
 router.get("/:busId/route", authenticate, getBusRoute);
+router.get("/:busId/history/dates", authenticate, getBusHistoryDates);
+router.get("/:busId/history", authenticate, getBusHistory);
 
 module.exports = router;

@@ -124,13 +124,60 @@ async function markByFace(req, res, next) {
       return error(res, "mode must be 'entry' or 'exit'", 400);
     }
 
+    // If the face belongs to a driver, record them on today's BusDailyHistory
+    // instead of marking student attendance.
+    const driver = await prisma.driver.findUnique({
+      where: { faceId },
+      select: { id: true, name: true, phone: true, busId: true },
+    });
+
+    if (driver) {
+      if (driver.busId == null) {
+        return error(res, `Driver '${driver.name}' is not assigned to any bus`, 400);
+      }
+
+      const now = new Date();
+      const today = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      );
+
+      const history = await prisma.busDailyHistory.upsert({
+        where: { busId_date: { busId: driver.busId, date: today } },
+        create: {
+          busId: driver.busId,
+          date: today,
+          driverId: driver.id,
+          driverName: driver.name,
+          driverPhone: driver.phone,
+          points: [],
+        },
+        update: {
+          driverId: driver.id,
+          driverName: driver.name,
+          driverPhone: driver.phone,
+        },
+      });
+
+      return success(
+        res,
+        {
+          type: "driver",
+          driverId: driver.id,
+          driverName: driver.name,
+          busId: driver.busId,
+          date: history.date.toISOString().slice(0, 10),
+        },
+        200
+      );
+    }
+
     const student = await prisma.student.findUnique({
       where: { faceId },
       select: { id: true, busId: true },
     });
 
     if (!student) {
-      return error(res, `No student found for faceId '${faceId}'`, 404);
+      return error(res, `No student or driver found for faceId '${faceId}'`, 404);
     }
 
     const attendance = await recordEvent(req, {

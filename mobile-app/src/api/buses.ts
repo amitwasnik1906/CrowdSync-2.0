@@ -53,3 +53,19 @@ export const getBusLocation = (id: number): Promise<BusLocation | null> =>
 
 export const getBusRoute = (id: number) =>
   client.get(`/api/buses/${id}/route`).then((r) => unwrap<BusRoute>(r));
+
+export type BusHistoryPoint = { lat: number; lng: number; timestamp: string };
+
+export type BusDayHistory = {
+  date: string;
+  driver: { id: number; name: string; phone: string } | null;
+  points: BusHistoryPoint[];
+};
+
+export const getBusHistoryDates = (id: number) =>
+  client.get(`/api/buses/${id}/history/dates`).then((r) => unwrap<string[]>(r));
+
+export const getBusHistory = (id: number, date: string) =>
+  client
+    .get(`/api/buses/${id}/history`, { params: { date } })
+    .then((r) => unwrap<BusDayHistory>(r));

@@ -5,6 +5,82 @@ const prisma = require("../config/prisma");
 const DB_WRITE_THROTTLE_MS = 1000;
 const lastDbWriteAt = new Map(); // busId -> timestamp
 
+const HISTORY_MIN_DISTANCE_M = 1000;
+const historyCache = new Map(); // busId -> { dateKey, lastLat, lastLng, recordId }
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function utcDateOnly(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+async function recordHistoryPoint(busId, latitude, longitude) {
+  const now = new Date();
+  const today = utcDateOnly(now);
+  const dateKey = today.toISOString().slice(0, 10);
+
+  let cached = historyCache.get(busId);
+
+  if (!cached || cached.dateKey !== dateKey) {
+    const existing = await prisma.busDailyHistory.findUnique({
+      where: { busId_date: { busId, date: today } },
+    });
+
+    if (existing) {
+      const pts = Array.isArray(existing.points) ? existing.points : [];
+      const last = pts[pts.length - 1];
+      cached = {
+        dateKey,
+        recordId: existing.id,
+        lastLat: last?.lat ?? latitude,
+        lastLng: last?.lng ?? longitude,
+      };
+      historyCache.set(busId, cached);
+    } else {
+      const bus = await prisma.bus.findUnique({
+        where: { id: busId },
+        include: { driver: { select: { id: true, name: true, phone: true } } },
+      });
+      const firstPoint = { lat: latitude, lng: longitude, timestamp: now.toISOString() };
+      const created = await prisma.busDailyHistory.create({
+        data: {
+          busId,
+          date: today,
+          driverId: bus?.driver?.id ?? null,
+          driverName: bus?.driver?.name ?? null,
+          driverPhone: bus?.driver?.phone ?? null,
+          points: [firstPoint],
+        },
+      });
+      cached = { dateKey, recordId: created.id, lastLat: latitude, lastLng: longitude };
+      historyCache.set(busId, cached);
+      return;
+    }
+  }
+
+  const dist = haversineMeters(cached.lastLat, cached.lastLng, latitude, longitude);
+  if (dist < HISTORY_MIN_DISTANCE_M) return;
+
+  const newPoint = { lat: latitude, lng: longitude, timestamp: now.toISOString() };
+  await prisma.$executeRaw`
+    UPDATE "BusDailyHistory"
+    SET points = points || ${JSON.stringify([newPoint])}::jsonb,
+        "updatedAt" = NOW()
+    WHERE id = ${cached.recordId}
+  `;
+  cached.lastLat = latitude;
+  cached.lastLng = longitude;
+}
+
 function initSocket(server) {
   const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
@@ -75,6 +151,10 @@ function initSocket(server) {
           speed,
           timestamp: new Date(),
         });
+
+        recordHistoryPoint(id, latitude, longitude).catch((e) =>
+          console.error("[WS] history append failed:", e.message)
+        );
 
         ack?.({ ok: true });
       } catch (err) {

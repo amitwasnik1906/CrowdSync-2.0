@@ -70,6 +70,7 @@ model Bus {
   driver     Driver?
   attendance Attendance[]
   route      BusRoute?
+  history    BusDailyHistory[]
 
   createdAt DateTime @default(now())
 }
@@ -116,6 +117,26 @@ model BusRoute {
   stops    Json?
 
   bus Bus @relation(fields: [busId], references: [id])
+}
+
+model BusDailyHistory {
+  id    Int      @id @default(autoincrement())
+  busId Int
+  date  DateTime @db.Date
+
+  driverId    Int?
+  driverName  String?
+  driverPhone String?
+
+  points Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bus Bus @relation(fields: [busId], references: [id], onDelete: Cascade)
+
+  @@unique([busId, date])
+  @@index([busId, date])
 }
 
 // ─── Notifications ───────────────────────────────────────────

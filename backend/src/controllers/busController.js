@@ -112,6 +112,59 @@ async function getBusRoute(req, res, next) {
   }
 }
 
+// GET /api/buses/:busId/history/dates
+async function getBusHistoryDates(req, res, next) {
+  try {
+    const busId = parseInt(req.params.busId);
+    if (Number.isNaN(busId)) return error(res, "Invalid bus id", 400);
+
+    const rows = await prisma.busDailyHistory.findMany({
+      where: { busId },
+      select: { date: true },
+      orderBy: { date: "desc" },
+    });
+
+    const dates = rows.map((r) => r.date.toISOString().slice(0, 10));
+    return success(res, dates);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/buses/:busId/history?date=YYYY-MM-DD
+async function getBusHistory(req, res, next) {
+  try {
+    const busId = parseInt(req.params.busId);
+    if (Number.isNaN(busId)) return error(res, "Invalid bus id", 400);
+
+    const dateStr = req.query.date;
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return error(res, "date query param required (YYYY-MM-DD)", 400);
+    }
+
+    const date = new Date(`${dateStr}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) return error(res, "Invalid date", 400);
+
+    const row = await prisma.busDailyHistory.findUnique({
+      where: { busId_date: { busId, date } },
+    });
+
+    if (!row) return error(res, "No history for this date", 404);
+
+    const driver = row.driverId
+      ? { id: row.driverId, name: row.driverName, phone: row.driverPhone }
+      : null;
+
+    return success(res, {
+      date: row.date.toISOString().slice(0, 10),
+      driver,
+      points: Array.isArray(row.points) ? row.points : [],
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /api/buses/:id (ADMIN)
 async function deleteBus(req, res, next) {
   try {
@@ -136,6 +189,7 @@ async function deleteBus(req, res, next) {
       prisma.driver.updateMany({ where: { busId }, data: { busId: null } }),
       prisma.busRoute.deleteMany({ where: { busId } }),
       prisma.attendance.deleteMany({ where: { busId } }),
+      prisma.busDailyHistory.deleteMany({ where: { busId } }),
       prisma.bus.delete({ where: { id: busId } }),
     ]);
 
@@ -148,4 +202,5 @@ async function deleteBus(req, res, next) {
 module.exports = {
   createBus, getAllBuses, getBus, assignDriver, deleteBus,
   getBusLocation, getBusRoute,
+  getBusHistoryDates, getBusHistory,
 };
