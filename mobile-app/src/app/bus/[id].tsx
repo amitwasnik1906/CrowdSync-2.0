@@ -323,6 +323,13 @@ export default function BusDetail() {
           <Text style={styles.historyButtonText}>View past dates</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.simulateButton}
+          onPress={() => router.push(`/bus/${busId}/simulate` as never)}
+        >
+          <Text style={styles.simulateButtonText}>▶  Simulate movement</Text>
+        </TouchableOpacity>
+
         {stops.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Stops</Text>
@@ -471,4 +478,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   historyButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  simulateButton: {
+    backgroundColor: '#10b981',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  simulateButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });

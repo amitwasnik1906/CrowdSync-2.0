@@ -37,6 +37,10 @@ function AuthGate() {
         name="bus/[id]/history"
         options={{ headerShown: true, title: 'Bus History' }}
       />
+      <Stack.Screen
+        name="bus/[id]/simulate"
+        options={{ headerShown: true, title: 'Bus' }}
+      />
     </Stack>
   );
 }
