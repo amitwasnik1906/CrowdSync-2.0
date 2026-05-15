@@ -16,12 +16,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 
 const STORAGE_KEY = 'bus-location-sender-settings';
-const DEFAULT_API_URL = 'http://localhost:5000';
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_DEFAULT_API_URL || 'http://localhost:5000';
+const DEFAULT_EMAIL = 'admin@crowdsync.com';
+const DEFAULT_PASSWORD = 'admin123';
 const SEND_INTERVAL_MS = 5000;
 
 export default function SenderScreen() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
-  const [token, setToken] = useState('');
+  const [email, setEmail] = useState(DEFAULT_EMAIL);
+  const [password, setPassword] = useState(DEFAULT_PASSWORD);
   const [busId, setBusId] = useState('');
   const [running, setRunning] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -39,15 +42,38 @@ export default function SenderScreen() {
       try {
         const s = JSON.parse(raw);
         if (s.apiUrl) setApiUrl(s.apiUrl);
-        if (s.token) setToken(s.token);
+        if (s.email) setEmail(s.email);
+        if (s.password) setPassword(s.password);
         if (s.busId) setBusId(String(s.busId));
       } catch {}
     });
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ apiUrl, token, busId })).catch(() => {});
-  }, [apiUrl, token, busId]);
+    AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ apiUrl, email, password, busId }),
+    ).catch(() => {});
+  }, [apiUrl, email, password, busId]);
+
+  const fetchToken = async (): Promise<string | null> => {
+    try {
+      const res = await fetch(`${apiUrl.replace(/\/+$/, '')}/api/auth/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.success || !body?.data?.token) {
+        pushLog(`login failed: ${body?.error || `HTTP ${res.status}`}`);
+        return null;
+      }
+      return body.data.token as string;
+    } catch (e: any) {
+      pushLog(`login error: ${e?.message || e}`);
+      return null;
+    }
+  };
 
   const pushLog = (line: string) =>
     setLog((prev) => [`[${new Date().toLocaleTimeString()}] ${line}`, ...prev].slice(0, 30));
@@ -79,10 +105,15 @@ export default function SenderScreen() {
   const start = async () => {
     if (!busId) return pushLog('set a bus id first');
     if (!apiUrl) return pushLog('set api url first');
-    if (!token) return pushLog('set jwt first');
+    if (!email || !password) return pushLog('set admin email and password first');
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return pushLog('location permission denied');
+
+    pushLog('logging in as admin…');
+    const token = await fetchToken();
+    if (!token) return;
+    pushLog('token acquired');
 
     const socket = io(apiUrl, { transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
@@ -148,12 +179,25 @@ export default function SenderScreen() {
             editable={!running}
           />
 
-          <Text style={styles.label}>Bus System JWT</Text>
+          <Text style={styles.label}>Admin Email</Text>
           <TextInput
             style={styles.input}
-            value={token}
-            onChangeText={setToken}
-            placeholder="eyJhbGciOi..."
+            value={email}
+            onChangeText={setEmail}
+            placeholder="admin@crowdsync.com"
+            placeholderTextColor="#64748b"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            editable={!running}
+          />
+
+          <Text style={styles.label}>Admin Password</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="admin123"
             placeholderTextColor="#64748b"
             autoCapitalize="none"
             autoCorrect={false}
