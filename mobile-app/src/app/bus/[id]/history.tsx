@@ -21,7 +21,7 @@ import {
   type BusRoute,
 } from '@/api/buses';
 
-const COLOR_PLANNED = '#94a3b8';
+const COLOR_PLANNED = '#fde68a';
 const COLOR_TRAVELED = '#4f46e5';
 
 function fmtDate(iso: string) {

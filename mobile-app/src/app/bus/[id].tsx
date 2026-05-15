@@ -26,7 +26,7 @@ import {
 } from '@/api/buses';
 import { useBusSocket, useSocketStatus } from '@/lib/socket';
 
-const COLOR_PLANNED = '#94a3b8';
+const COLOR_PLANNED = '#fde68a';
 const COLOR_TRAVELED = '#4f46e5';
 
 function fmtAgo(iso?: string | null) {

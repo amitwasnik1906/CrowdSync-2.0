@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, Marker, Popup, Polyline } from "react-leaflet";
+import ReactLeafletGoogleLayerRaw from "react-leaflet-google-layer";
 import { Link } from "react-router-dom";
 import L from "leaflet";
 import polyline from "@mapbox/polyline";
 import { listBuses, getBusRoute } from "../api/buses";
 import { useAllBusesSocket } from "../hooks/useSocket";
 import { busIcon } from "../utils/leafletIcon";
+
+const ReactLeafletGoogleLayer = ReactLeafletGoogleLayerRaw.default ?? ReactLeafletGoogleLayerRaw;
+const GMAPS_KEY = import.meta.env.VITE_APP_GOOGLE_MAPS_API_KEY;
 
 const DEFAULT_CENTER = [20.5937, 78.9629]; // India
 const DEFAULT_ZOOM = 5;
@@ -119,10 +123,7 @@ export default function LiveMap() {
 
       <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <MapContainer center={center} zoom={zoom} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
+          <ReactLeafletGoogleLayer apiKey={GMAPS_KEY} type="roadmap" />
 
           {showRoutes && routedBuses.map(({ bus, color, route }) => (
             <Polyline

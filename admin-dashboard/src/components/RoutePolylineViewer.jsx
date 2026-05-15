@@ -1,11 +1,15 @@
 import { useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, useMap } from "react-leaflet";
+import ReactLeafletGoogleLayerRaw from "react-leaflet-google-layer";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import polyline from "@mapbox/polyline";
 import { X } from "lucide-react";
 import Button from "./ui/Button";
 import "../utils/leafletIcon";
+
+const ReactLeafletGoogleLayer = ReactLeafletGoogleLayerRaw.default ?? ReactLeafletGoogleLayerRaw;
+const GMAPS_KEY = import.meta.env.VITE_APP_GOOGLE_MAPS_API_KEY;
 
 function numberedIcon(index) {
   return L.divIcon({
@@ -54,10 +58,7 @@ export default function RoutePolylineViewer({ open, onClose, title, encoded, sto
           ) : (
             <div className="h-full overflow-hidden rounded-lg border border-slate-200">
               <MapContainer center={positions[0]} zoom={13} className="h-full w-full">
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; OpenStreetMap contributors'
-                />
+                <ReactLeafletGoogleLayer apiKey={GMAPS_KEY} type="roadmap" />
                 <Polyline positions={positions} color="#4f46e5" weight={4} />
                 {stops?.map((s, i) => (
                   <Marker key={i} position={[s.lat, s.lng]} icon={numberedIcon(i)} />

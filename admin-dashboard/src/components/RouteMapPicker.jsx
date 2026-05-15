@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, useMapEvents } from "react-leaflet";
+import ReactLeafletGoogleLayerRaw from "react-leaflet-google-layer";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import axios from "axios";
@@ -10,7 +11,9 @@ import toast from "react-hot-toast";
 import Button from "./ui/Button";
 import "../utils/leafletIcon";
 
+const ReactLeafletGoogleLayer = ReactLeafletGoogleLayerRaw.default ?? ReactLeafletGoogleLayerRaw;
 const ORS_API_KEY = import.meta.env.VITE_APP_ORSM_API_KEY;
+const GMAPS_KEY = import.meta.env.VITE_APP_GOOGLE_MAPS_API_KEY;
 const SUGGEST_DEBOUNCE_MS = 400;
 
 function numberedIcon(index) {
@@ -334,10 +337,7 @@ export default function RouteMapPicker({ open, onClose, onConfirm }) {
             }`}
           >
             <MapContainer center={[20.5937, 78.9629]} zoom={5} className="h-full w-full">
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; OpenStreetMap contributors'
-              />
+              <ReactLeafletGoogleLayer apiKey={GMAPS_KEY} type="roadmap" />
               {clickMode && <MapClickHandler onAdd={addPinFromMap} />}
               {pinnedLocations.map((loc, i) => (
                 <Marker
