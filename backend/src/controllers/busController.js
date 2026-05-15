@@ -165,7 +165,12 @@ async function getBusHistory(req, res, next) {
     if (!row) return error(res, "No history for this date", 404);
 
     const driver = row.driverId
-      ? { id: row.driverId, name: row.driverName, phone: row.driverPhone }
+      ? {
+          id: row.driverId,
+          name: row.driverName,
+          phone: row.driverPhone,
+          photoUrl: row.driverPhoto ?? null,
+        }
       : null;
 
     return success(res, {

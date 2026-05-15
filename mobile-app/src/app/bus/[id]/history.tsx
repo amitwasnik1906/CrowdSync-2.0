@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -260,6 +261,19 @@ export default function BusHistory() {
             >
               <Text style={styles.phoneLink}>{history.driver.phone}</Text>
             </TouchableOpacity>
+            {history.driver.photoUrl ? (
+              <Image
+                source={{ uri: history.driver.photoUrl }}
+                style={styles.driverPhotoLarge}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.driverPhotoLarge, styles.driverPhotoPlaceholder]}>
+                <Text style={styles.driverPhotoInitialLarge}>
+                  {history.driver.name?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -390,6 +404,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   metaText: { fontSize: 13, color: '#666' },
+  driverPhotoLarge: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    backgroundColor: '#e5e7eb',
+    marginTop: 12,
+  },
+  driverPhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  driverPhotoInitialLarge: { color: '#6b7280', fontSize: 64, fontWeight: '700' },
   driverName: { fontSize: 16, fontWeight: '600', color: '#111' },
   phoneLink: { fontSize: 14, color: '#4f46e5', marginTop: 2 },
   errorText: { color: '#dc2626', fontSize: 13 },

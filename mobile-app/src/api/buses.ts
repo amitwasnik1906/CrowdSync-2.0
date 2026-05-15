@@ -63,7 +63,12 @@ export type BusHistoryPoint = { lat: number; lng: number; timestamp: string };
 
 export type BusDayHistory = {
   date: string;
-  driver: { id: number; name: string; phone: string } | null;
+  driver: {
+    id: number;
+    name: string;
+    phone: string;
+    photoUrl?: string | null;
+  } | null;
   points: BusHistoryPoint[];
 };
 
