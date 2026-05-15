@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
 const { reverseGeocode } = require("../utils/geocode");
+const cloudinaryService = require("../services/cloudinaryService");
 
 // Shared logic: write one Attendance row for the given event and emit a WS event.
 async function recordEvent(req, { studentId, busId, type, latitude, longitude }) {
@@ -194,4 +195,90 @@ async function markByFace(req, res, next) {
   }
 }
 
-module.exports = { markEntry, markExit, markByFace, getBusAttendance };
+// POST /api/attendance/driver-mark (FACE-RECOGNITION SYSTEM via X-API-Key)
+// Multipart: text field `faceId` + file field `photo`.
+// Returns 404 "Not a driver" so the Python client can fall back to /face for
+// student attendance.
+async function markDriverByFace(req, res, next) {
+  try {
+    const { faceId } = req.body;
+
+    if (!faceId) {
+      return error(res, "faceId is required", 400);
+    }
+    if (!req.file) {
+      return error(res, "photo file is required", 400);
+    }
+
+    const driver = await prisma.driver.findUnique({
+      where: { faceId },
+      select: { id: true, name: true, phone: true, busId: true },
+    });
+
+    if (!driver) {
+      return error(res, "Not a driver", 404);
+    }
+    if (driver.busId == null) {
+      return error(res, `Driver '${driver.name}' is not assigned to any bus`, 400);
+    }
+
+    const now = new Date();
+    const today = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    );
+
+    const existing = await prisma.busDailyHistory.findUnique({
+      where: { busId_date: { busId: driver.busId, date: today } },
+      select: { driverPhotoPublicId: true },
+    });
+    const oldPublicId = existing?.driverPhotoPublicId || null;
+
+    const uploaded = await cloudinaryService.uploadDriverPhoto(
+      req.file.buffer,
+      req.file.mimetype,
+      { busId: driver.busId, date: today }
+    );
+
+    const history = await prisma.busDailyHistory.upsert({
+      where: { busId_date: { busId: driver.busId, date: today } },
+      create: {
+        busId: driver.busId,
+        date: today,
+        driverId: driver.id,
+        driverName: driver.name,
+        driverPhone: driver.phone,
+        driverPhoto: uploaded.url,
+        driverPhotoPublicId: uploaded.publicId,
+        points: [],
+      },
+      update: {
+        driverId: driver.id,
+        driverName: driver.name,
+        driverPhone: driver.phone,
+        driverPhoto: uploaded.url,
+        driverPhotoPublicId: uploaded.publicId,
+      },
+    });
+
+    if (oldPublicId && oldPublicId !== uploaded.publicId) {
+      cloudinaryService.deletePhoto(oldPublicId).catch(() => {});
+    }
+
+    return success(
+      res,
+      {
+        type: "driver",
+        driverId: driver.id,
+        driverName: driver.name,
+        busId: driver.busId,
+        driverPhoto: history.driverPhoto,
+        date: history.date.toISOString().slice(0, 10),
+      },
+      200
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { markEntry, markExit, markByFace, markDriverByFace, getBusAttendance };

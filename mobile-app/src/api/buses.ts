@@ -8,7 +8,12 @@ export type Bus = {
   occupancy: number;
   currentLat?: number | null;
   currentLng?: number | null;
-  driver?: { id: number; name: string; phone: string } | null;
+  driver?: {
+    id: number;
+    name: string;
+    phone: string;
+    photoUrl?: string | null;
+  } | null;
 };
 
 export type BusLocation = {

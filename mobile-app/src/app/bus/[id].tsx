@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -290,10 +291,28 @@ export default function BusDetail() {
         {bus.driver && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Driver</Text>
-            <Text style={styles.driverName}>{bus.driver.name}</Text>
-            <TouchableOpacity onPress={() => Linking.openURL(`tel:${bus.driver!.phone}`)}>
-              <Text style={styles.phoneLink}>{bus.driver.phone}</Text>
-            </TouchableOpacity>
+            <View style={styles.driverRow}>
+              {bus.driver.photoUrl ? (
+                <Image
+                  source={{ uri: bus.driver.photoUrl }}
+                  style={styles.driverPhoto}
+                />
+              ) : (
+                <View style={[styles.driverPhoto, styles.driverPhotoPlaceholder]}>
+                  <Text style={styles.driverPhotoInitial}>
+                    {bus.driver.name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.driverInfo}>
+                <Text style={styles.driverName}>{bus.driver.name}</Text>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(`tel:${bus.driver!.phone}`)}
+                >
+                  <Text style={styles.phoneLink}>{bus.driver.phone}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         )}
 
@@ -424,6 +443,11 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 13, color: '#666', marginTop: 2 },
   barTrack: { height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden', marginBottom: 6 },
   barFill: { height: '100%', backgroundColor: '#4f46e5' },
+  driverRow: { flexDirection: 'row', alignItems: 'center' },
+  driverInfo: { flex: 1, marginLeft: 12 },
+  driverPhoto: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e5e7eb' },
+  driverPhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  driverPhotoInitial: { color: '#6b7280', fontSize: 18, fontWeight: '700' },
   driverName: { fontSize: 16, fontWeight: '600', color: '#111' },
   phoneLink: { fontSize: 14, color: '#4f46e5', marginTop: 2 },
   stopRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },

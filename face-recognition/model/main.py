@@ -59,6 +59,18 @@ def _recognize(filename, face_database, attendance):
                 print(f"{color.RED}Backend not configured — skipping attendance.{color.END}")
                 return
 
+            # Try the driver endpoint first with the captured frame. If the face
+            # belongs to a driver, the backend uploads the photo to Cloudinary
+            # and stamps today's BusDailyHistory. On 404 "Not a driver" we fall
+            # back to the student attendance endpoint.
+            matched_driver, ok, message = attendance.mark_driver(predicted_name, filename)
+            if matched_driver:
+                if ok:
+                    print(f"✅ {message}")
+                else:
+                    print(f"{color.RED}❌ {message}{color.END}")
+                return
+
             # Backend is the source of truth: it returns 409 if a student tries
             # to board while already on the bus, or 404 if exit is sent without
             # an open entry. Multiple round-trips per day are allowed.

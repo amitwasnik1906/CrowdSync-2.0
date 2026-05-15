@@ -49,6 +49,19 @@ async function getBus(req, res, next) {
     });
 
     if (!bus) return error(res, "Bus not found", 404);
+
+    if (bus.driver) {
+      const now = new Date();
+      const today = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      );
+      const history = await prisma.busDailyHistory.findUnique({
+        where: { busId_date: { busId: bus.id, date: today } },
+        select: { driverPhoto: true },
+      });
+      bus.driver.photoUrl = history?.driverPhoto ?? null;
+    }
+
     return success(res, bus);
   } catch (err) {
     next(err);
